@@ -1,0 +1,206 @@
+name: Update omp
+
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-omp
+  cancel-in-progress: false
+
+jobs:
+  update:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    env:
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      GH_TOKEN: ${{ github.token }}
+      UPDATE_BRANCH: automation/update-omp
+    steps:
+      - name: Check out default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes shellcheck
+
+      - name: Fetch and verify latest release
+        run: |
+          set -Eeuo pipefail
+
+          workdir="$(mktemp -d)"
+          trap 'rm -rf -- "$workdir"' EXIT
+          release_json="$workdir/release.json"
+          manifest="$workdir/SHA256SUMS.txt"
+          release_repo=can1357/oh-my-pi
+          release_api="repos/$release_repo/releases/latest"
+
+          gh api --header 'Accept: application/vnd.github+json' "$release_api" > "$release_json"
+
+          fail() {
+            printf 'update-omp: %s\n' "$*" >&2
+            exit 1
+          }
+
+          version="$(jq -r '.tag_name // empty' "$release_json")"
+          [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+            fail "invalid release tag: $version"
+          [[ "$(jq -r '.draft == false' "$release_json")" == true ]] ||
+            fail "latest release is a draft"
+          [[ "$(jq -r '.prerelease == false' "$release_json")" == true ]] ||
+            fail "latest release is a prerelease"
+
+          asset_digest() {
+            local asset="$1"
+            local count
+            local digest
+            count="$(jq --arg name "$asset" '[.assets[]? | select(.name == $name)] | length' "$release_json")"
+            [[ "$count" == 1 ]] || fail "expected one $asset asset, found $count"
+            digest="$(jq -r --arg name "$asset" '.assets[] | select(.name == $name) | .digest // empty' "$release_json")"
+            [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] ||
+              fail "missing or invalid API digest for $asset"
+            printf '%s\n' "${digest#sha256:}"
+          }
+
+          arm64_api_sha="$(asset_digest omp-linux-arm64)"
+          amd64_api_sha="$(asset_digest omp-linux-x64)"
+          manifest_api_sha="$(asset_digest SHA256SUMS.txt)"
+          release_base="https://github.com/$release_repo/releases/download/$version"
+          curl -fsSL --connect-timeout 10 --speed-limit 1024 --speed-time 30 \
+            "$release_base/SHA256SUMS.txt" -o "$manifest"
+          printf '%s  %s\n' "$manifest_api_sha" "$manifest" | sha256sum -c -
+
+          manifest_digest() {
+            local asset="$1"
+            local digest
+            digest="$(awk -v asset="$asset" '$2 == asset { print $1 }' "$manifest")"
+            [[ "$digest" =~ ^[0-9a-f]{64}$ ]] ||
+              fail "missing or ambiguous manifest digest for $asset"
+            printf '%s\n' "$digest"
+          }
+
+          arm64_sha="$(manifest_digest omp-linux-arm64)"
+          amd64_sha="$(manifest_digest omp-linux-x64)"
+          [[ "$arm64_sha" == "$arm64_api_sha" ]] ||
+            fail 'arm64 manifest and API digests differ'
+          [[ "$amd64_sha" == "$amd64_api_sha" ]] ||
+            fail 'amd64 manifest and API digests differ'
+
+          for asset in omp-linux-arm64 omp-linux-x64; do
+            curl -fsSL --connect-timeout 10 --speed-limit 1024 --speed-time 30 \
+              "$release_base/$asset" -o "$workdir/$asset"
+          done
+          printf '%s  %s\n' "$arm64_sha" "$workdir/omp-linux-arm64" | sha256sum -c -
+          printf '%s  %s\n' "$amd64_sha" "$workdir/omp-linux-x64" | sha256sum -c -
+
+          current_version="$(sed -n 's/^omp_version=//p' Smolfile)"
+          current_arm64_sha="$(sed -n '/^arm64)/,/^  ;;/s/^  omp_sha256=//p' Smolfile)"
+          current_amd64_sha="$(sed -n '/^amd64)/,/^  ;;/s/^  omp_sha256=//p' Smolfile)"
+          [[ "$current_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+            fail "invalid current omp version: $current_version"
+          [[ "$current_arm64_sha" =~ ^[0-9a-f]{64}$ ]] ||
+            fail 'invalid current arm64 checksum'
+          [[ "$current_amd64_sha" =~ ^[0-9a-f]{64}$ ]] ||
+            fail 'invalid current amd64 checksum'
+
+          if [[ "$version" == "$current_version" ]]; then
+            [[ "$arm64_sha" == "$current_arm64_sha" && "$amd64_sha" == "$current_amd64_sha" ]] ||
+              fail 'release checksums changed without a version change'
+          else
+            highest_version="$(printf '%s\n%s\n' "$current_version" "$version" | sort -V | tail -n1)"
+            [[ "$highest_version" == "$version" ]] ||
+              fail "release version $version is older than $current_version"
+          fi
+
+          printf 'VERSION=%s\nARM64_SHA=%s\nAMD64_SHA=%s\n' \
+            "$version" "$arm64_sha" "$amd64_sha" >> "$GITHUB_ENV"
+
+      - name: Update pinned files
+        run: scripts/update-omp.sh "$VERSION" "$ARM64_SHA" "$AMD64_SHA"
+
+      - name: Run repository checks
+        run: make check
+
+      - name: Commit and push update branch
+        id: push
+        run: |
+          set -Eeuo pipefail
+
+          if git diff --quiet -- Smolfile README.md tests/build.sh.test; then
+            printf 'omp is already current\n'
+            printf 'changed=false\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git switch -C "$UPDATE_BRANCH"
+          git add Smolfile README.md tests/build.sh.test
+          git commit -m "build: update omp to $VERSION"
+
+          if git ls-remote --exit-code origin "refs/heads/$UPDATE_BRANCH" >/dev/null 2>&1; then
+            git fetch origin "$UPDATE_BRANCH"
+            git push --force-with-lease origin "HEAD:$UPDATE_BRANCH"
+          else
+            git push origin "HEAD:$UPDATE_BRANCH"
+          fi
+          printf 'changed=true\n' >> "$GITHUB_OUTPUT"
+
+      - name: Create or update pull request
+        id: pr
+        if: steps.push.outputs.changed == 'true'
+        run: |
+          set -Eeuo pipefail
+
+          title="build: update omp to $VERSION"
+          body="Automated daily update of the pinned omp release to $VERSION. The workflow verified the release metadata, SHA256SUMS.txt, and both architecture-specific binary downloads before running make check."
+          pr_number="$(gh pr list --base "$DEFAULT_BRANCH" --head "$UPDATE_BRANCH" --state open --json number --jq '.[0].number')"
+          if [[ -n "$pr_number" ]]; then
+            gh pr edit "$pr_number" --title "$title" --body "$body"
+          else
+            gh pr create --base "$DEFAULT_BRANCH" --head "$UPDATE_BRANCH" \
+              --title "$title" --body "$body"
+            pr_number="$(gh pr list --base "$DEFAULT_BRANCH" --head "$UPDATE_BRANCH" --state open --json number --jq '.[0].number')"
+          fi
+          [[ -n "$pr_number" ]] || {
+            printf 'update-omp: pull request was not found after creation\n' >&2
+            exit 1
+          }
+          printf 'number=%s\n' "$pr_number" >> "$GITHUB_OUTPUT"
+
+      - name: Run pull request checks
+        if: steps.push.outputs.changed == 'true'
+        run: |
+          set -Eeuo pipefail
+
+          previous_run_id="$(gh run list --workflow check.yml --branch "$UPDATE_BRANCH" --event workflow_dispatch --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+          gh workflow run check.yml --ref "$UPDATE_BRANCH"
+          run_id=''
+          for _ in {1..60}; do
+            run_id="$(gh run list --workflow check.yml --branch "$UPDATE_BRANCH" --event workflow_dispatch --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+            if [[ -n "$run_id" && "$run_id" != "$previous_run_id" ]]; then
+              break
+            fi
+            sleep 5
+          done
+          [[ -n "$run_id" && "$run_id" != "$previous_run_id" ]] || {
+            printf 'update-omp: dispatched check workflow did not start\n' >&2
+            exit 1
+          }
+          gh run watch "$run_id" --exit-status
+
+      - name: Enable pull request auto-merge
+        if: steps.push.outputs.changed == 'true'
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+        run: gh pr merge "$PR_NUMBER" --auto --squash --delete-branch

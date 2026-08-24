@@ -1,0 +1,195 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+[[ -x "$PROJECT_ROOT/ompact" ]] || {
+  printf 'built ./ompact is required\n' >&2
+  exit 1
+}
+
+WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/ompact-runtime-test.XXXXXX")"
+trap 'rm -rf -- "$WORKDIR"' EXIT
+
+HOST_STATE="$WORKDIR/.omp"
+mkdir -m 0700 "$HOST_STATE"
+HOST_UID="$(id -u)"
+
+run_omp() {
+  "$PROJECT_ROOT/ompact" run \
+    -v "$HOST_STATE:/home/omp/.omp" \
+    -- /usr/local/bin/omp "$@"
+}
+
+run_omp --no-session config set startup.quiet true
+
+CONFIG_FILE="$HOST_STATE/agent/config.yml"
+[[ -f "$CONFIG_FILE" ]] || {
+  printf 'missing host config: %s\n' "$CONFIG_FILE" >&2
+  exit 1
+}
+
+CONFIG_OWNER="$(stat -f '%u' "$CONFIG_FILE")"
+[[ "$CONFIG_OWNER" == "$HOST_UID" ]] || {
+  printf 'config owner %s does not match host uid %s\n' "$CONFIG_OWNER" "$HOST_UID" >&2
+  exit 1
+}
+[[ "$CONFIG_OWNER" != 0 ]] || {
+  printf 'config is owned by root\n' >&2
+  exit 1
+}
+
+[[ "$(run_omp --no-session config get startup.quiet)" == true ]] || {
+  printf 'startup.quiet did not persist\n' >&2
+  exit 1
+}
+[[ "$(run_omp --no-session config path)" == /home/omp/.omp/agent ]] || {
+  printf 'config path did not use the mounted agent directory\n' >&2
+  exit 1
+}
+TMPFILE="$("$PROJECT_ROOT/ompact" run -- /bin/sh -c \
+  "test \"\${TMPDIR:-}\" = /tmp -a -d \"\$TMPDIR\" -a -w \"\$TMPDIR\" && \
+    mktemp \"\$TMPDIR/ompact-runtime.XXXXXX\"")"
+[[ "$TMPFILE" == /tmp/ompact-runtime.* ]] || {
+  printf 'runtime TMPDIR is missing, wrong, or not writable\n' >&2
+  exit 1
+}
+
+NETWORK_INTERFACES="$("$PROJECT_ROOT/ompact" run -- /bin/sh -c \
+  "for interface_path in /sys/class/net/*; do interface_name=\${interface_path##*/}; interface_state=\$(cat \"\$interface_path/operstate\"); [ \"\$interface_name\" = lo ] || [ \"\$interface_state\" = down ] || printf '%s\n' \"\$interface_name\"; done")"
+[[ -z "$NETWORK_INTERFACES" ]] || {
+  printf 'runtime network interface was active by default: %s\n' \
+    "$NETWORK_INTERFACES" >&2
+  exit 1
+}
+NETWORK_ROUTES="$("$PROJECT_ROOT/ompact" run -- /bin/sh -c 'cat /proc/net/route')"
+[[ "$NETWORK_ROUTES" != *00000000* ]] || {
+  printf 'runtime network default route was enabled by default\n' >&2
+  exit 1
+}
+set +e
+"$PROJECT_ROOT/ompact" run --net -- /bin/sh -c \
+  'curl -fsS --connect-timeout 5 --max-time 10 https://example.com/ >/dev/null'
+NETWORK_STATUS=$?
+set -e
+((NETWORK_STATUS == 0)) || {
+  printf 'runtime --net override did not provide outbound connectivity\n' >&2
+  exit 1
+}
+
+WORKSPACE="$WORKDIR/workspace"
+mkdir "$WORKSPACE"
+printf 'workspace-ok\n' >"$WORKSPACE/marker"
+[[ "$("$PROJECT_ROOT/ompact" run \
+  -v "$WORKSPACE:/workspace:ro" \
+  -- /bin/cat /workspace/marker)" == workspace-ok ]] || {
+  printf 'workspace mount did not expose the host file\n' >&2
+  exit 1
+}
+
+set +e
+"$PROJECT_ROOT/ompact" run \
+  -v "$HOST_STATE:/home/omp/.omp:ro" \
+  -- /usr/local/bin/omp --no-session config set startup.quiet false \
+  >/dev/null 2>&1
+READ_ONLY_STATUS=$?
+set -e
+((READ_ONLY_STATUS != 0)) || {
+  printf 'read-only state mount unexpectedly accepted a write\n' >&2
+  exit 1
+}
+
+set +e
+ROOT_STATE_OUTPUT="$("$PROJECT_ROOT/ompact" run \
+  -e PI_CODING_AGENT_DIR=/etc \
+  -- /usr/local/bin/omp --version 2>&1)"
+ROOT_STATE_STATUS=$?
+set -e
+((ROOT_STATE_STATUS != 0)) || {
+  printf 'root-owned state path unexpectedly succeeded\n' >&2
+  exit 1
+}
+[[ "$ROOT_STATE_OUTPUT" == *'is owned by root'* ]] || {
+  printf 'root-owned state rejection was not reported\n' >&2
+  exit 1
+}
+
+# Verify selected tools are present and executable by the omp user
+REQUIRED_TOOLS=(python python3 fd rg gh sd sg ast-grep)
+for tool in "${REQUIRED_TOOLS[@]}"; do
+  if ! "$PROJECT_ROOT/ompact" run -- /bin/sh -c \
+    "command -v $tool >/dev/null 2>&1"; then
+    printf '%s is missing from the base image\n' "$tool" >&2
+    exit 1
+  fi
+done
+
+TOOLS_PRESENT=("${REQUIRED_TOOLS[@]}")
+for tool in cargo go jj; do
+  if "$PROJECT_ROOT/ompact" run -- /bin/sh -c "command -v $tool >/dev/null 2>&1"; then
+    TOOLS_PRESENT+=("$tool")
+  fi
+done
+
+if ((${#TOOLS_PRESENT[@]})); then
+  printf 'verifying tool access for: %s\n' "${TOOLS_PRESENT[*]}"
+  for tool in "${TOOLS_PRESENT[@]}"; do
+    # Run through runuser to verify access as the omp user
+    case "$tool" in
+    cargo)
+      version_command='cargo --version'
+      expected='cargo'
+      ;;
+    go)
+      version_command='go version'
+      expected='go version'
+      ;;
+    python)
+      version_command='python --version'
+      expected='Python'
+      ;;
+    python3)
+      version_command='python3 --version'
+      expected='Python'
+      ;;
+    jj)
+      version_command='jj --version'
+      expected='jj'
+      ;;
+    fd)
+      version_command='fd --version'
+      expected='fd 10.5.0'
+      ;;
+    rg)
+      version_command='rg --version'
+      expected='ripgrep 15.2.0'
+      ;;
+    gh)
+      version_command='gh --version'
+      expected='gh version 2.98.0'
+      ;;
+    sd)
+      version_command='sd --version'
+      expected='sd 1.0.0'
+      ;;
+    sg)
+      version_command='sg --version'
+      expected='0.45.2'
+      ;;
+    ast-grep)
+      version_command='ast-grep --version'
+      expected='0.45.2'
+      ;;
+    esac
+    OUTPUT="$("$PROJECT_ROOT/ompact" run -- \
+      /usr/sbin/runuser --user omp -- /bin/sh -c "$version_command")"
+    [[ "$OUTPUT" == *"$expected"* ]] || {
+      printf '%s not accessible to omp user (expected: %s)\n' "$tool" "$expected" >&2
+      exit 1
+    }
+  done
+else
+  printf 'no language environments selected; skipping tool access check\n'
+fi
+
+printf 'runtime harness passed\n'

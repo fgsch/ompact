@@ -1,0 +1,682 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/ompact-build-test.XXXXXX")"
+FAKE_SMOLVM="$WORKDIR/smolvm"
+SMOLVM_LOG="$WORKDIR/smolvm.log"
+STATUS_COUNT="$WORKDIR/status-count"
+BUILD_OUTPUT="$WORKDIR/build.out"
+
+cleanup() {
+  rm -rf -- "$WORKDIR"
+}
+trap cleanup EXIT
+
+fail() {
+  printf 'assertion failed: %s\n' "$*" >&2
+  exit 1
+}
+assert_file_contains() {
+  local file="$1"
+  local needle="$2"
+  local contents
+  contents="$(<"$file")"
+  [[ "$contents" == *"$needle"* ]] ||
+    fail "$file is missing: $needle"
+}
+
+assert_file_not_contains() {
+  local file="$1"
+  local needle="$2"
+  local contents
+  contents="$(<"$file")"
+  [[ "$contents" != *"$needle"* ]] ||
+    fail "$file unexpectedly contains: $needle"
+}
+
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'image = "debian:trixie-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132"'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'cmd = ["--"]'
+assert_file_not_contains "$PROJECT_ROOT/build.sh" \
+  'SMOLVM_BIN'
+assert_file_not_contains "$PROJECT_ROOT/build.sh" \
+  "VM_NAME=\"\${VM_NAME:-"
+assert_file_not_contains "$PROJECT_ROOT/build.sh" \
+  "SMOLFILE=\"\${SMOLFILE:-"
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'snapshot.debian.org/archive/debian/20260820T000000Z trixie'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'trixie-security main'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'omp_version=v18.0.10'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'omp_sha256=6e83691a8e88fa7eb365231c4424a58dda7db9cc088bf37fadfe98c27b090b79'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'omp_sha256=b13e6b2a74a5c71e57b9f717e0fc4834bcfe0609f30dc1782a91976b230361a0'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'jj_version=v0.44.0'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  "jj-\${jj_version}-aarch64-unknown-linux-musl.tar.gz"
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  "jj-\${jj_version}-x86_64-unknown-linux-musl.tar.gz"
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  "https://github.com/jj-vcs/jj/releases/download/\$jj_version/\$jj_archive"
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'jj_sha256=60d42fa2a9abaa445eff10cd2087458562aaad5a54b90309e5a3787ecc985ff2'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'jj_sha256=0a07bab4641a55fd2bc2fd1563ba3a3f9a577584086ad74086a1c5b69b3ffce9'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  "install -m 0755 \"\$jj_extract/jj\" /usr/local/bin/jj"
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'fd_version=v10.5.0'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'fd_sha256=d76c4317f7d5dba69f8a2a15856c90c777e7f0dd4e85f0de8c76de6992c374d4'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'fd_sha256=761c72dc8e120d85b22292063be8a796e2eeb20eb3e4f38b8fa2343ccf3514a7'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'rg_version=15.2.0'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'rg_sha256=800b1e7206afe799dfb5a6901f23147cfaabe0e52210538100f61e86e1740915'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'rg_sha256=33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'gh_version=v2.98.0'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'gh_2.98.0_linux_arm64.tar.gz'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'gh_2.98.0_linux_amd64.tar.gz'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'gh_sha256=cf689084f3a3618f7eae4a2420d335d74626d65f5e594b9828d125d69f800d86'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'gh_sha256=3b8ac6b30336802fc1a858d7c084e11cdf24ac1a761ca90b68022d7d729208de'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  "https://github.com/cli/cli/releases/download/\$gh_version/\$gh_archive"
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  "install -m 0755 \"\$gh_extract/\${gh_archive%.tar.gz}/bin/gh\" /usr/local/bin/gh"
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'sd_version=v1.1.0'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  "sd-\${sd_version}-aarch64-unknown-linux-musl.tar.gz"
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  "sd-\${sd_version}-x86_64-unknown-linux-musl.tar.gz"
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'sd_sha256=ec8c93c0533ff21f4851d11566808d4082544baf063d9b96ea77c27e98b7cd99'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'sd_sha256=02f00f4777d43e8e95b7b8d49e1a0d6e502fed4b8e79c1c8b8063857a30caa2e'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  "https://github.com/chmln/sd/releases/download/\$sd_version/\$sd_archive"
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  "install -m 0755 \"\$sd_extract/\${sd_archive%.tar.gz}/sd\" /usr/local/bin/sd"
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'sg_version=0.45.2'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'app-aarch64-unknown-linux-gnu.zip'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'app-x86_64-unknown-linux-gnu.zip'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'sg_sha256=e67ee2f5928b4d77a472114edf6e227d90fefe22fa47e7a78db187c55d206564'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'sg_sha256=67aff72dd2994bf152fcc3a8a09cf93b13193abe59f39393095167c729af2015'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  "https://github.com/ast-grep/ast-grep/releases/download/\$sg_version/\$sg_archive"
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  "install -m 0755 \"\$sg_extract/sg\" /usr/local/bin/sg"
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  "install -m 0755 \"\$sg_extract/ast-grep\" /usr/local/bin/ast-grep"
+assert_file_not_contains "$PROJECT_ROOT/Smolfile" \
+  'fd-find ripgrep'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'build-essential pkg-config libssl-dev jq tar python3 python-is-python3'
+assert_file_not_contains "$PROJECT_ROOT/Smolfile" \
+  'build-essential pkg-config libssl-dev jq tar python3 python-is-python3 gh'
+assert_file_not_contains "$PROJECT_ROOT/env/python.sh" \
+  'uv python install'
+assert_file_not_contains "$PROJECT_ROOT/env/python.sh" \
+  'PYTHON_VERSION='
+assert_file_not_contains "$PROJECT_ROOT/Smolfile" \
+  'https://omp.sh/install'
+assert_file_contains "$PROJECT_ROOT/env/python.sh" \
+  'UV_INSTALLER_SHA256=92e8554321e2bde08c9b1445dae47a65360f885274f31df51cdc2f9faa84e001'
+assert_file_contains "$PROJECT_ROOT/env/python.sh" \
+  "curl -fsSL -o \"\$uv_install_script\""
+assert_file_contains "$PROJECT_ROOT/env/python.sh" \
+  'sha256sum -c -'
+
+cat >"$FAKE_SMOLVM" <<'FAKE_SMOLVM'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+: "${SMOLVM_LOG:?SMOLVM_LOG is required}"
+printf '%q ' "$@" >> "$SMOLVM_LOG"
+printf '\n' >> "$SMOLVM_LOG"
+
+if [[ "${1:-}" == --version ]]; then
+  printf 'smolvm test-version\n'
+  exit 0
+fi
+if [[ "${SMOLVM_FAIL_ON:-}" == "${1:-}:${2:-}" ]]; then
+  exit 1
+fi
+if [[ "${SMOLVM_EXISTING:-0}" == 1 &&
+  "${1:-}:${2:-}" == machine:create ]]; then
+  exit 1
+fi
+
+if [[ -n "${SMOLVM_SLEEP:-}" ]]; then
+  sleep "$SMOLVM_SLEEP"
+fi
+case "${1:-}:${2:-}" in
+  machine:status)
+    exit 0
+    ;;
+  machine:create|machine:start|machine:exec|machine:stop|machine:update|machine:delete)
+    exit 0
+    ;;
+  pack:create)
+    output=''
+    while (($# > 0)); do
+      if [[ "$1" == --output ]]; then
+        (($# >= 2)) || { printf 'missing pack output\n' >&2; exit 1; }
+        output="$2"
+        shift 2
+      else
+        shift
+      fi
+    done
+    [[ -n "$output" ]] || { printf 'missing pack output\n' >&2; exit 1; }
+    cat > "$output" <<'FAKE_LAUNCHER'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+: "${SMOLVM_LOG:?SMOLVM_LOG is required}"
+if [[ "$#" -eq 4 &&
+  "${1:-}" == run &&
+  "${2:-}" == -- &&
+  "${3:-}" == /usr/local/bin/omp &&
+  "${4:-}" == --version ]]; then
+  :
+elif [[ "$#" -eq 7 &&
+  "${1:-}" == run &&
+  "${2:-}" == -v &&
+  "${3:-}" == */env:/opt/ompact-env:ro &&
+  "${4:-}" == -- &&
+  "${5:-}" == /bin/sh &&
+  "${7:-}" == check ]]; then
+  selected_install=0
+  selected_check=0
+  while IFS= read -r invocation; do
+    if [[ "$invocation" == machine\ exec* &&
+      "$invocation" == *" ${6} install " ]]; then
+      selected_install=1
+    fi
+    if [[ "$invocation" == machine\ exec* &&
+      "$invocation" == *" ${6} check " ]]; then
+      selected_check=1
+    fi
+  done < "$SMOLVM_LOG"
+  ((selected_install == 1 && selected_check == 1)) ||
+    exit 1
+else
+  exit 1
+fi
+printf '%q ' packaged-launcher "$@" >> "$SMOLVM_LOG"
+printf '\n' >> "$SMOLVM_LOG"
+exit 0
+FAKE_LAUNCHER
+    chmod +x "$output"
+    exit 0
+    ;;
+  *)
+    printf 'unexpected fake smolvm invocation\n' >&2
+    exit 1
+    ;;
+esac
+FAKE_SMOLVM
+chmod +x "$FAKE_SMOLVM"
+FAKE_BIN="$WORKDIR/bin"
+mkdir -p "$FAKE_BIN"
+ln "$FAKE_SMOLVM" "$FAKE_BIN/smolvm"
+
+FAKE_HOME="$WORKDIR/home"
+mkdir -p "$FAKE_HOME/.smolvm"
+
+export HOME="$FAKE_HOME"
+export PATH="$FAKE_BIN:$PATH"
+export VM_NAME="$WORKDIR/unexpected-vm"
+export SMOLFILE="$WORKDIR/unexpected-smolfile"
+export SMOLVM_BIN="$WORKDIR/unexpected-smolvm"
+export SMOLVM_LOG
+export SMOLVM_STATUS_COUNT="$STATUS_COUNT"
+export RUST_TOOLCHAIN='1.98.0'
+export GO_VERSION='go1.27.0'
+export UV_VERSION='0.12.7'
+export UV_CACHE_DIR='/var/cache/uv'
+export CARGO_AUDIT_VERSION='0.22.2'
+export CARGO_DENY_VERSION='0.20.2'
+export CARGO_NEXTEST_VERSION='0.9.143'
+export GOPLS_VERSION='0.23.0'
+export GOVULNCHECK_VERSION='1.7.0'
+export STATICCHECK_VERSION='0.8.1'
+export GOLANGCI_LINT_VERSION='2.13.2'
+export CPUS='8'
+export MEMORY='16384'
+
+assert_log_contains() {
+  local needle="$1"
+  [[ "$log_contents" == *"$needle"* ]] ||
+    fail "fake smolvm log is missing: $needle"
+}
+
+assert_log_not_contains() {
+  local needle="$1"
+  [[ "$log_contents" != *"$needle"* ]] ||
+    fail "fake smolvm log unexpectedly contains: $needle"
+}
+
+assert_log_line_equals() {
+  local expected="$1"
+  local invocation
+  while IFS= read -r invocation; do
+    [[ "$invocation" == "$expected" ]] && return 0
+  done <<<"$log_contents"
+  fail "fake smolvm log is missing exact invocation: $expected"
+}
+
+assert_log_order() {
+  local before="$1"
+  local after="$2"
+  local before_line=0
+  local after_line=0
+  local line_number=0
+  local invocation
+  while IFS= read -r invocation; do
+    line_number=$((line_number + 1))
+    if [[ "$invocation" == "$before" && $before_line == 0 ]]; then
+      before_line="$line_number"
+    fi
+    if [[ "$invocation" == "$after" && $after_line == 0 ]]; then
+      after_line="$line_number"
+    fi
+  done <<<"$log_contents"
+  ((before_line > 0 && after_line > 0 && before_line < after_line)) ||
+    fail "expected invocation order: $before before $after"
+}
+
+find_log_line() {
+  local prefix="$1"
+  local invocation
+  while IFS= read -r invocation; do
+    if [[ "$invocation" == "$prefix"* ]]; then
+      printf '%s\n' "$invocation"
+      return 0
+    fi
+  done <<<"$log_contents"
+  return 1
+}
+assert_output_line_equals() {
+  local expected="$1"
+  local output_line
+  while IFS= read -r output_line; do
+    [[ "$output_line" == "$expected" ]] && return 0
+  done <"$BUILD_OUTPUT"
+  fail "build output is missing exact line: $expected"
+}
+
+run_case() {
+  local case_name="$1"
+  local environments="$2"
+  local explicit_empty="${EXPLICIT_EMPTY_ARGUMENT:-0}"
+  shift 2
+  local expected_environments=("$@")
+  local output="$WORKDIR/ompact-$case_name"
+  local vm_name
+  local create_invocation
+  local pack_create_invocation
+  local environment_volume="$PROJECT_ROOT/env:/opt/ompact-env:ro"
+  local environment_mount="$PROJECT_ROOT/env:/opt/ompact-env"
+  local environment_name
+  local machine_exec_install
+  local build_status
+  local expected_count
+
+  rm -f -- "$STATUS_COUNT" "$output" "$output.smolmachine"
+  : >"$SMOLVM_LOG"
+  export OUTPUT="$output"
+
+  set +e
+  if [[ -n "$environments" ]]; then
+    "$PROJECT_ROOT/build.sh" "$environments" >"$BUILD_OUTPUT" 2>&1
+  elif ((explicit_empty)); then
+    "$PROJECT_ROOT/build.sh" '' >"$BUILD_OUTPUT" 2>&1
+  else
+    "$PROJECT_ROOT/build.sh" >"$BUILD_OUTPUT" 2>&1
+  fi
+  build_status=$?
+  set -e
+  if ((build_status != 0)); then
+    printf '%s case failed (status %d):\n' "$case_name" "$build_status" >&2
+    cat "$BUILD_OUTPUT" >&2
+    exit 1
+  fi
+
+  [[ -x "$output" ]] || fail "$case_name output is not executable"
+  [[ ! -e "$output.smolmachine" && ! -L "$output.smolmachine" ]] ||
+    fail "$case_name output has a sidecar"
+  [[ ! -e /tmp/ompact.smolmachine &&
+    ! -L /tmp/ompact.smolmachine ]] ||
+    fail "$case_name left a legacy sidecar"
+
+  log_contents="$(<"$SMOLVM_LOG")"
+  create_invocation="$(find_log_line 'machine create ')" ||
+    fail "$case_name is missing machine create invocation"
+  if [[ "$create_invocation" =~ --name[[:space:]]+(omp-package-builder-[^[:space:]]+) ]]; then
+    vm_name="${BASH_REMATCH[1]}"
+  else
+    fail "$case_name machine create did not use a generated VM name"
+  fi
+  pack_create_invocation="$(find_log_line 'pack create ')" ||
+    fail "$case_name is missing pack create invocation"
+  assert_log_contains "machine start --name $vm_name "
+  assert_log_contains "machine exec --name $vm_name -- /usr/local/bin/omp --version "
+  assert_log_contains "machine stop --name $vm_name "
+  assert_log_contains "machine delete --name $vm_name --force "
+  assert_log_line_equals 'packaged-launcher run -- /usr/local/bin/omp --version '
+  [[ "$create_invocation" == *"--name $vm_name"* ]] ||
+    fail "$case_name machine create is missing: --name $vm_name"
+  [[ "$create_invocation" == *"--smolfile $PROJECT_ROOT/Smolfile"* ]] ||
+    fail "$case_name machine create is missing --smolfile"
+  [[ "$create_invocation" == *'--net'* ]] ||
+    fail "$case_name machine create is missing build network override: --net"
+  [[ "$pack_create_invocation" == *"--from-vm $vm_name"* ]] ||
+    fail "$case_name pack create is missing --from-vm $vm_name"
+  [[ "$pack_create_invocation" == *"--smolfile $PROJECT_ROOT/Smolfile"* ]] ||
+    fail "$case_name pack create is missing --smolfile"
+  [[ "$pack_create_invocation" == *'--single-file'* ]] ||
+    fail "$case_name pack create is missing --single-file"
+  [[ "$pack_create_invocation" == *"--output $output"* ]] ||
+    fail "$case_name pack create is missing --output"
+  if [[ ${CPUS+x} ]]; then
+    [[ "$create_invocation" == *'--cpus 8'* ]] ||
+      fail "$case_name machine create is missing: --cpus 8"
+    [[ "$pack_create_invocation" == *'--cpus 8'* ]] ||
+      fail "$case_name pack create is missing: --cpus 8"
+  else
+    assert_log_not_contains '--cpus'
+  fi
+  if [[ ${MEMORY+x} ]]; then
+    [[ "$create_invocation" == *'--mem 16384'* ]] ||
+      fail "$case_name machine create is missing: --mem 16384"
+    [[ "$pack_create_invocation" == *'--mem 16384'* ]] ||
+      fail "$case_name pack create is missing: --mem 16384"
+  else
+    assert_log_not_contains '--mem'
+  fi
+  expected_count="${#expected_environments[@]}"
+  if ((expected_count > 0)); then
+    assert_output_line_equals "environments selected: ${expected_environments[*]}"
+    assert_log_order \
+      "machine update --name $vm_name --remove-volume $environment_mount " \
+      "$pack_create_invocation"
+    [[ "$create_invocation" == *"--volume $environment_volume"* ]] ||
+      fail "$case_name machine create is missing environment volume"
+    for environment_name in rust go python; do
+      machine_exec_install="machine exec --name $vm_name -- /bin/sh /opt/ompact-env/$environment_name.sh install "
+      machine_exec_check="machine exec --name $vm_name -- /bin/sh /opt/ompact-env/$environment_name.sh check "
+      packaged_check="packaged-launcher run -v $environment_volume -- /bin/sh /opt/ompact-env/$environment_name.sh check "
+      if [[ " ${expected_environments[*]} " == *" $environment_name "* ]]; then
+        assert_log_line_equals "$machine_exec_install"
+        assert_log_line_equals "$machine_exec_check"
+        assert_log_line_equals "$packaged_check"
+        case "$environment_name" in
+        rust)
+          for expected_env in \
+            "RUST_TOOLCHAIN=$RUST_TOOLCHAIN" \
+            "CARGO_AUDIT_VERSION=$CARGO_AUDIT_VERSION" \
+            "CARGO_DENY_VERSION=$CARGO_DENY_VERSION" \
+            "CARGO_NEXTEST_VERSION=$CARGO_NEXTEST_VERSION"; do
+            [[ "$create_invocation" == *"--env $expected_env"* ]] ||
+              fail "$case_name machine create is missing: --env $expected_env"
+          done
+          ;;
+        go)
+          for expected_env in \
+            "GO_VERSION=$GO_VERSION" \
+            "GOPLS_VERSION=$GOPLS_VERSION" \
+            "GOVULNCHECK_VERSION=$GOVULNCHECK_VERSION" \
+            "STATICCHECK_VERSION=$STATICCHECK_VERSION" \
+            "GOLANGCI_LINT_VERSION=$GOLANGCI_LINT_VERSION"; do
+            [[ "$create_invocation" == *"--env $expected_env"* ]] ||
+              fail "$case_name machine create is missing: --env $expected_env"
+          done
+          ;;
+        python)
+          for expected_env in \
+            "UV_VERSION=$UV_VERSION" \
+            "UV_CACHE_DIR=$UV_CACHE_DIR"; do
+            [[ "$create_invocation" == *"--env $expected_env"* ]] ||
+              fail "$case_name machine create is missing: --env $expected_env"
+          done
+          ;;
+        esac
+      else
+        assert_log_not_contains "$machine_exec_install"
+        assert_log_not_contains "$machine_exec_check"
+        assert_log_not_contains "$packaged_check"
+      fi
+    done
+  else
+    assert_log_not_contains '--volume'
+    assert_log_not_contains '--env'
+    assert_log_not_contains '/opt/ompact-env'
+    assert_log_not_contains 'machine update'
+    assert_log_not_contains 'packaged-launcher run -v'
+    if [[ "$case_name" == default || "$case_name" == empty-argument ]]; then
+      assert_output_line_equals 'no environments selected'
+    fi
+  fi
+}
+
+run_rejected_case() {
+  local case_name="$1"
+  local expected_message="$2"
+  local output="$WORKDIR/ompact-$case_name"
+  local build_status
+
+  rm -f -- "$STATUS_COUNT" "$output" "$output.smolmachine"
+  [[ ! -e /tmp/ompact.smolmachine &&
+    ! -L /tmp/ompact.smolmachine ]] ||
+    fail "$case_name found a pre-existing legacy sidecar"
+  case "$case_name" in
+  output-directory)
+    mkdir "$output"
+    ;;
+  sidecar)
+    : >"$output.smolmachine"
+    ;;
+  legacy-sidecar)
+    : >/tmp/ompact.smolmachine
+    ;;
+  esac
+
+  : >"$SMOLVM_LOG"
+  export OUTPUT="$output"
+  export VM_NAME="omp-package-builder-$case_name"
+  set +e
+  "$PROJECT_ROOT/build.sh" >"$BUILD_OUTPUT" 2>&1
+  build_status=$?
+  set -e
+  ((build_status != 0)) ||
+    fail "$case_name unexpectedly succeeded"
+  log_contents="$(<"$SMOLVM_LOG")"
+  assert_log_not_contains 'machine create'
+  [[ "$(<"$BUILD_OUTPUT")" == *"$expected_message"* ]] ||
+    fail "$case_name did not report: $expected_message"
+
+  case "$case_name" in
+  output-directory)
+    rmdir "$output"
+    ;;
+  sidecar)
+    rm -f -- "$output.smolmachine"
+    ;;
+  legacy-sidecar)
+    rm -f -- /tmp/ompact.smolmachine
+    ;;
+  esac
+}
+
+run_failure_cleanup_case() {
+  local build_status
+  local create_invocation
+  local vm_name
+  rm -f -- "$STATUS_COUNT" "$WORKDIR/ompact-failure" "$WORKDIR/ompact-failure.smolmachine"
+  : >"$SMOLVM_LOG"
+  export OUTPUT="$WORKDIR/ompact-failure"
+  set +e
+  SMOLVM_FAIL_ON=machine:start "$PROJECT_ROOT/build.sh" >"$BUILD_OUTPUT" 2>&1
+  build_status=$?
+  set -e
+  ((build_status != 0)) || fail 'failure case unexpectedly succeeded'
+  log_contents="$(<"$SMOLVM_LOG")"
+  create_invocation="$(find_log_line 'machine create ')" ||
+    fail 'failure case is missing machine create invocation'
+  if [[ "$create_invocation" =~ --name[[:space:]]+(omp-package-builder-[^[:space:]]+) ]]; then
+    vm_name="${BASH_REMATCH[1]}"
+  else
+    fail 'failure case machine create did not use a generated VM name'
+  fi
+  assert_log_contains "machine stop --name $vm_name "
+  assert_log_contains "machine delete --name $vm_name --force "
+}
+
+run_signal_cleanup_case() {
+  local build_status
+  local vm_name
+  local build_pid
+  local retries
+  local invocation
+
+  rm -f -- "$WORKDIR/ompact-signal" "$WORKDIR/ompact-signal.smolmachine"
+  : >"$SMOLVM_LOG"
+  export OUTPUT="$WORKDIR/ompact-signal"
+
+  set +e
+  SMOLVM_SLEEP=3 "$PROJECT_ROOT/build.sh" >"$BUILD_OUTPUT" 2>&1 &
+  build_pid=$!
+
+  retries=60
+  while ((retries > 0)); do
+    if [[ -f "$SMOLVM_LOG" ]] &&
+      grep -q "machine start --name omp-package-builder-.*-$build_pid " "$SMOLVM_LOG"; then
+      break
+    fi
+    sleep 0.1
+    retries=$((retries - 1))
+  done
+  ((retries > 0)) || fail 'signal case: machine start never reached'
+
+  while IFS= read -r invocation; do
+    if [[ "$invocation" =~ ^machine[[:space:]]create[[:space:]]--name[[:space:]]+(omp-package-builder-[^[:space:]]*-$build_pid)[[:space:]] ]]; then
+      vm_name="${BASH_REMATCH[1]}"
+      break
+    fi
+  done <"$SMOLVM_LOG"
+  [[ -n "$vm_name" ]] || fail 'signal case is missing generated VM name'
+
+  kill -TERM "$build_pid" 2>/dev/null || true
+  wait "$build_pid"
+  build_status=$?
+  set -e
+
+  ((build_status != 0)) || fail 'signal case unexpectedly succeeded'
+  log_contents="$(<"$SMOLVM_LOG")"
+  assert_log_contains "machine stop --name $vm_name "
+  assert_log_contains "machine delete --name $vm_name --force "
+}
+
+run_generated_create_failure_case() {
+  local build_status
+  local create_invocation
+  local generated_vm_name
+
+  rm -f -- "$WORKDIR/ompact-generated-failure" \
+    "$WORKDIR/ompact-generated-failure.smolmachine"
+  : >"$SMOLVM_LOG"
+  export OUTPUT="$WORKDIR/ompact-generated-failure"
+
+  set +e
+  SMOLVM_EXISTING=1 "$PROJECT_ROOT/build.sh" >"$BUILD_OUTPUT" 2>&1
+  build_status=$?
+  set -e
+
+  ((build_status != 0)) ||
+    fail 'generated create failure unexpectedly succeeded'
+
+  log_contents="$(<"$SMOLVM_LOG")"
+  create_invocation="$(find_log_line 'machine create ')" ||
+    fail 'generated create failure is missing machine create invocation'
+
+  if [[ "$create_invocation" =~ --name[[:space:]]+(omp-package-builder-[^[:space:]]+) ]]; then
+    generated_vm_name="${BASH_REMATCH[1]}"
+  else
+    fail 'generated VM name was not unique'
+  fi
+
+  assert_log_contains "machine stop --name $generated_vm_name "
+  assert_log_contains "machine delete --name $generated_vm_name --force "
+}
+run_invalid_selection_case() {
+  local selection="$1"
+  local expected_message="$2"
+  local invalid_status
+  : >"$SMOLVM_LOG"
+  rm -f -- "$STATUS_COUNT"
+  export OUTPUT="$WORKDIR/ompact-invalid-$selection"
+  set +e
+  "$PROJECT_ROOT/build.sh" "$selection" >"$BUILD_OUTPUT" 2>&1
+  invalid_status=$?
+  set -e
+  ((invalid_status != 0)) ||
+    fail "invalid environment selection unexpectedly succeeded: $selection"
+  log_contents="$(<"$SMOLVM_LOG")"
+  assert_log_not_contains 'machine create'
+  [[ "$(<"$BUILD_OUTPUT")" == *"$expected_message"* ]] ||
+    fail "invalid selection did not report: $expected_message"
+}
+
+run_rejected_case output-directory 'output exists and is not a regular file'
+run_rejected_case sidecar 'unexpected sidecar exists'
+run_rejected_case legacy-sidecar 'unexpected legacy sidecar exists'
+run_generated_create_failure_case
+run_failure_cleanup_case
+
+run_signal_cleanup_case
+
+run_case default ''
+EXPLICIT_EMPTY_ARGUMENT=1 run_case empty-argument ''
+run_case rust rust rust
+run_case go go go
+run_case python python python
+run_case combo go,rust,python go rust python
+RUST_TOOLCHAIN=nightly run_case rust-override rust rust
+unset CPUS MEMORY
+run_case no-resources ''
+: >"$SMOLVM_LOG"
+rm -f -- "$STATUS_COUNT"
+export OUTPUT="$WORKDIR/ompact-invalid"
+set +e
+"$PROJECT_ROOT/build.sh" swift >"$BUILD_OUTPUT" 2>&1
+invalid_status=$?
+set -e
+((invalid_status != 0)) || fail 'invalid environment unexpectedly succeeded'
+log_contents="$(<"$SMOLVM_LOG")"
+assert_log_not_contains 'machine create'
+[[ "$(cat "$BUILD_OUTPUT")" == *'unknown environment: swift'* ]] ||
+  fail 'invalid environment error did not identify swift'
+
+run_invalid_selection_case go,go 'duplicate: go'
+run_invalid_selection_case go, 'empty name'
+printf 'host orchestration harness passed\n'

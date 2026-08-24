@@ -1,0 +1,227 @@
+image = "debian:trixie-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132"
+cpus = 4
+memory = 8192
+net = false
+
+env = [
+  "PATH=/usr/local/cargo/bin:/usr/local/go/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin",
+  "TMPDIR=/tmp",
+]
+
+init = [
+  '''bash -ceu '
+cat >/etc/apt/sources.list.d/debian-snapshot.list <<\EOF
+deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/20260820T000000Z trixie main
+deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/20260820T000000Z trixie-updates main
+deb [check-valid-until=no] http://snapshot.debian.org/archive/debian-security/20260820T000000Z trixie-security main
+EOF
+rm -f /etc/apt/sources.list /etc/apt/sources.list.d/debian.sources
+apt-get -o Acquire::Check-Valid-Until=false update
+apt-get install -y --no-install-recommends \
+  ca-certificates curl bash git openssh-client \
+  build-essential pkg-config libssl-dev jq tar python3 python-is-python3
+rm -rf /var/lib/apt/lists/*
+' ''',
+  '''bash -ceu '
+omp_version=v18.0.10
+case "$(dpkg --print-architecture)" in
+arm64)
+  omp_binary=omp-linux-arm64
+  omp_sha256=6e83691a8e88fa7eb365231c4424a58dda7db9cc088bf37fadfe98c27b090b79
+  ;;
+amd64)
+  omp_binary=omp-linux-x64
+  omp_sha256=b13e6b2a74a5c71e57b9f717e0fc4834bcfe0609f30dc1782a91976b230361a0
+  ;;
+*)
+  printf "unsupported architecture for omp: %s\n" "$(dpkg --print-architecture)" >&2
+  exit 1
+  ;;
+esac
+omp_download="$(mktemp)"
+curl -fsSL --connect-timeout 10 --speed-limit 1024 --speed-time 30 \
+  "https://github.com/can1357/oh-my-pi/releases/download/$omp_version/$omp_binary" \
+  -o "$omp_download"
+printf "%s  %s\n" "$omp_sha256" "$omp_download" | sha256sum -c -
+install -m 0755 "$omp_download" /usr/local/bin/omp
+rm -f -- "$omp_download"
+jj_version=v0.44.0
+case "$(dpkg --print-architecture)" in
+arm64)
+  jj_archive=jj-${jj_version}-aarch64-unknown-linux-musl.tar.gz
+  jj_sha256=60d42fa2a9abaa445eff10cd2087458562aaad5a54b90309e5a3787ecc985ff2
+  ;;
+amd64)
+  jj_archive=jj-${jj_version}-x86_64-unknown-linux-musl.tar.gz
+  jj_sha256=0a07bab4641a55fd2bc2fd1563ba3a3f9a577584086ad74086a1c5b69b3ffce9
+  ;;
+*)
+  printf "unsupported architecture for jj: %s\n" "$(dpkg --print-architecture)" >&2
+  exit 1
+  ;;
+esac
+jj_download="$(mktemp)"
+jj_extract="$(mktemp -d)"
+curl -fsSL --connect-timeout 10 --speed-limit 1024 --speed-time 30 \
+  "https://github.com/jj-vcs/jj/releases/download/$jj_version/$jj_archive" \
+  -o "$jj_download"
+printf "%s  %s\n" "$jj_sha256" "$jj_download" | sha256sum -c -
+tar -xzf "$jj_download" -C "$jj_extract"
+install -m 0755 "$jj_extract/jj" /usr/local/bin/jj
+rm -rf -- "$jj_extract" "$jj_download"
+fd_version=v10.5.0
+rg_version=15.2.0
+gh_version=v2.98.0
+sd_version=v1.1.0
+sg_version=0.45.2
+case "$(dpkg --print-architecture)" in
+arm64)
+  fd_archive=fd-${fd_version}-aarch64-unknown-linux-musl.tar.gz
+  fd_sha256=d76c4317f7d5dba69f8a2a15856c90c777e7f0dd4e85f0de8c76de6992c374d4
+  rg_archive=ripgrep-${rg_version}-aarch64-unknown-linux-musl.tar.gz
+  rg_sha256=800b1e7206afe799dfb5a6901f23147cfaabe0e52210538100f61e86e1740915
+  gh_archive=gh_2.98.0_linux_arm64.tar.gz
+  gh_sha256=cf689084f3a3618f7eae4a2420d335d74626d65f5e594b9828d125d69f800d86
+  sd_archive=sd-${sd_version}-aarch64-unknown-linux-musl.tar.gz
+  sd_sha256=ec8c93c0533ff21f4851d11566808d4082544baf063d9b96ea77c27e98b7cd99
+  sg_archive=app-aarch64-unknown-linux-gnu.zip
+  sg_sha256=e67ee2f5928b4d77a472114edf6e227d90fefe22fa47e7a78db187c55d206564
+  ;;
+amd64)
+  fd_archive=fd-${fd_version}-x86_64-unknown-linux-musl.tar.gz
+  fd_sha256=761c72dc8e120d85b22292063be8a796e2eeb20eb3e4f38b8fa2343ccf3514a7
+  rg_archive=ripgrep-${rg_version}-x86_64-unknown-linux-musl.tar.gz
+  rg_sha256=33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c
+  gh_archive=gh_2.98.0_linux_amd64.tar.gz
+  gh_sha256=3b8ac6b30336802fc1a858d7c084e11cdf24ac1a761ca90b68022d7d729208de
+  sd_archive=sd-${sd_version}-x86_64-unknown-linux-musl.tar.gz
+  sd_sha256=02f00f4777d43e8e95b7b8d49e1a0d6e502fed4b8e79c1c8b8063857a30caa2e
+  sg_archive=app-x86_64-unknown-linux-gnu.zip
+  sg_sha256=67aff72dd2994bf152fcc3a8a09cf93b13193abe59f39393095167c729af2015
+  ;;
+*)
+  printf "unsupported architecture for fd/ripgrep/gh/sd/ast-grep: %s\n" "$(dpkg --print-architecture)" >&2
+  exit 1
+  ;;
+esac
+fd_download="$(mktemp)"
+fd_extract="$(mktemp -d)"
+curl -fsSL --connect-timeout 10 --speed-limit 1024 --speed-time 30 \
+  "https://github.com/sharkdp/fd/releases/download/$fd_version/$fd_archive" \
+  -o "$fd_download"
+printf "%s  %s\n" "$fd_sha256" "$fd_download" | sha256sum -c -
+tar -xzf "$fd_download" -C "$fd_extract"
+install -m 0755 "$fd_extract/${fd_archive%.tar.gz}/fd" /usr/local/bin/fd
+rm -rf -- "$fd_extract" "$fd_download"
+rg_download="$(mktemp)"
+rg_extract="$(mktemp -d)"
+curl -fsSL --connect-timeout 10 --speed-limit 1024 --speed-time 30 \
+  "https://github.com/BurntSushi/ripgrep/releases/download/$rg_version/$rg_archive" \
+  -o "$rg_download"
+printf "%s  %s\n" "$rg_sha256" "$rg_download" | sha256sum -c -
+tar -xzf "$rg_download" -C "$rg_extract"
+install -m 0755 "$rg_extract/${rg_archive%.tar.gz}/rg" /usr/local/bin/rg
+rm -rf -- "$rg_extract" "$rg_download"
+gh_download="$(mktemp)"
+gh_extract="$(mktemp -d)"
+curl -fsSL --connect-timeout 10 --speed-limit 1024 --speed-time 30 \
+  "https://github.com/cli/cli/releases/download/$gh_version/$gh_archive" \
+  -o "$gh_download"
+printf "%s  %s\n" "$gh_sha256" "$gh_download" | sha256sum -c -
+tar -xzf "$gh_download" -C "$gh_extract"
+install -m 0755 "$gh_extract/${gh_archive%.tar.gz}/bin/gh" /usr/local/bin/gh
+rm -rf -- "$gh_extract" "$gh_download"
+sd_download="$(mktemp)"
+sd_extract="$(mktemp -d)"
+curl -fsSL --connect-timeout 10 --speed-limit 1024 --speed-time 30 \
+  "https://github.com/chmln/sd/releases/download/$sd_version/$sd_archive" \
+  -o "$sd_download"
+printf "%s  %s\n" "$sd_sha256" "$sd_download" | sha256sum -c -
+tar -xzf "$sd_download" -C "$sd_extract"
+install -m 0755 "$sd_extract/${sd_archive%.tar.gz}/sd" /usr/local/bin/sd
+rm -rf -- "$sd_extract" "$sd_download"
+sg_download="$(mktemp)"
+sg_extract="$(mktemp -d)"
+curl -fsSL --connect-timeout 10 --speed-limit 1024 --speed-time 30 \
+  "https://github.com/ast-grep/ast-grep/releases/download/$sg_version/$sg_archive" \
+  -o "$sg_download"
+printf "%s  %s\n" "$sg_sha256" "$sg_download" | sha256sum -c -
+python3 -c "import sys, zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" \
+  "$sg_download" "$sg_extract"
+install -m 0755 "$sg_extract/ast-grep" /usr/local/bin/ast-grep
+install -m 0755 "$sg_extract/sg" /usr/local/bin/sg
+rm -rf -- "$sg_extract" "$sg_download"
+' ''',
+  '''bash -ceu '
+apt-get update
+apt-get install -y --no-install-recommends util-linux passwd
+rm -rf /var/lib/apt/lists/*
+
+install -d -m 0755 /usr/local/libexec/omp
+mv /usr/local/bin/omp /usr/local/libexec/omp/omp
+
+getent group omp >/dev/null 2>&1 || groupadd --system omp
+if ! id -u omp >/dev/null 2>&1; then
+  useradd --system --gid omp --home-dir /home/omp \
+    --shell /usr/sbin/nologin --no-create-home omp
+fi
+usermod --gid omp --home /home/omp --shell /usr/sbin/nologin omp
+install -d -m 0755 -o omp -g omp /home/omp
+
+cat > /usr/local/bin/omp <<\EOF
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+export HOME=/home/omp
+export USER=omp
+export LOGNAME=omp
+
+state_owner_uid=
+state_candidates=()
+if [[ -n ${PI_CODING_AGENT_DIR:-} ]]; then
+  state_candidates+=( "$PI_CODING_AGENT_DIR" )
+fi
+state_candidates+=( /home/omp/.omp/agent /home/omp/.omp )
+for state_path in "${state_candidates[@]}"; do
+  [[ -e "$state_path" ]] || continue
+  if ! state_owner_uid="$(/usr/bin/stat -c "%u" -- "$state_path")"; then
+    printf "unable to inspect omp state path %s\n" "$state_path" >&2
+    exit 1
+  fi
+  break
+done
+
+if [[ -n "$state_owner_uid" ]]; then
+  if [[ ! "$state_owner_uid" =~ ^[0-9]+$ ]]; then
+    printf "omp state path owner is not numeric: %s\n" "$state_owner_uid" >&2
+    exit 1
+  fi
+  if [[ "$state_owner_uid" == 0 ]]; then
+    printf "omp state path %s is owned by root; mount a writable directory owned by a non-root host user\n" "$state_path" >&2
+    exit 1
+  fi
+
+  omp_uid="$(/usr/bin/id -u omp)"
+  if [[ "$state_owner_uid" != "$omp_uid" ]]; then
+    if /usr/bin/getent passwd "$state_owner_uid" >/dev/null 2>&1; then
+      printf "omp state owner uid %s is already assigned to another guest account; use a different non-root host owner\n" "$state_owner_uid" >&2
+      exit 1
+    fi
+    /usr/sbin/usermod --uid "$state_owner_uid" omp
+    /usr/bin/chown "$state_owner_uid:$(/usr/bin/id -g omp)" /home/omp
+  fi
+fi
+
+exec /usr/sbin/runuser --user omp --preserve-environment -- \
+  /usr/bin/setpriv --no-new-privs --inh-caps=-all --ambient-caps=-all \
+  /usr/local/libexec/omp/omp "$@"
+EOF
+chmod 0755 /usr/local/bin/omp
+' ''',
+]
+
+[artifact]
+cpus = 4
+memory = 8192
+entrypoint = ["/usr/local/bin/omp"]
+cmd = ["--"]
