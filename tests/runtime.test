@@ -29,7 +29,16 @@ CONFIG_FILE="$HOST_STATE/agent/config.yml"
   exit 1
 }
 
-CONFIG_OWNER="$(stat -f '%u' "$CONFIG_FILE")"
+stat_owner() {
+  local owner
+  if owner="$(stat -c '%u' "$1" 2>/dev/null)" &&
+    [[ "$owner" =~ ^[0-9]+$ ]]; then
+    printf '%s\n' "$owner"
+  else
+    stat -f '%u' "$1"
+  fi
+}
+CONFIG_OWNER="$(stat_owner "$CONFIG_FILE")"
 [[ "$CONFIG_OWNER" == "$HOST_UID" ]] || {
   printf 'config owner %s does not match host uid %s\n' "$CONFIG_OWNER" "$HOST_UID" >&2
   exit 1

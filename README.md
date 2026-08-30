@@ -8,9 +8,10 @@
 
 | Phase | Requirements |
 | --- | --- |
-| Build | macOS arm64, network access, a preinstalled `smolvm` CLI, and `mkfs.ext4` on `PATH`. |
+| Build | Linux x86_64/arm64 or macOS arm64, network access, a preinstalled `smolvm` CLI, and `mkfs.ext4` on `PATH`. |
+| Linux virtualization | KVM access through a readable and writable `/dev/kvm`. |
 | macOS graphics | Homebrew `libepoxy` and `virglrenderer` runtime libraries. Install `e2fsprogs`, `startergo/virglrenderer/virglrenderer`, and its tap dependencies (`startergo/angle`, `startergo/gn`, and `startergo/libepoxy`). Add e2fsprogs' `sbin` directory to `PATH`. |
-| Runtime | A host supported by `smolvm`; the artifact is not a portable macOS application. |
+| Runtime | A host supported by `smolvm` with matching architecture; the artifact is host-native, not a portable application. |
 
 ## Build
 
