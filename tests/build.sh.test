@@ -632,15 +632,23 @@ run_invalid_selection_case() {
   local selection="$1"
   local expected_message="$2"
   local invalid_status
+  local existing_output='existing artifact'
   : >"$SMOLVM_LOG"
   rm -f -- "$STATUS_COUNT"
   export OUTPUT="$WORKDIR/ompact-invalid-$selection"
+  printf '%s\n' "$existing_output" >"$OUTPUT"
   set +e
   "$PROJECT_ROOT/build.sh" "$selection" >"$BUILD_OUTPUT" 2>&1
   invalid_status=$?
   set -e
   ((invalid_status != 0)) ||
     fail "invalid environment selection unexpectedly succeeded: $selection"
+
+  [[ -f "$OUTPUT" ]] ||
+    fail "invalid selection removed the existing output"
+  [[ "$(<"$OUTPUT")" == "$existing_output" ]] ||
+    fail "invalid selection changed the existing output"
+
   log_contents="$(<"$SMOLVM_LOG")"
   assert_log_not_contains 'machine create'
   [[ "$(<"$BUILD_OUTPUT")" == *"$expected_message"* ]] ||

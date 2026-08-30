@@ -115,7 +115,7 @@ set -e
 }
 
 # Verify selected tools are present and executable by the omp user
-REQUIRED_TOOLS=(python python3 fd rg gh sd sg ast-grep)
+REQUIRED_TOOLS=(python python3 fd rg gh sd sg ast-grep jj)
 for tool in "${REQUIRED_TOOLS[@]}"; do
   if ! "$PROJECT_ROOT/ompact" run -- /bin/sh -c \
     "command -v $tool >/dev/null 2>&1"; then
@@ -125,7 +125,7 @@ for tool in "${REQUIRED_TOOLS[@]}"; do
 done
 
 TOOLS_PRESENT=("${REQUIRED_TOOLS[@]}")
-for tool in cargo go jj; do
+for tool in cargo go; do
   if "$PROJECT_ROOT/ompact" run -- /bin/sh -c "command -v $tool >/dev/null 2>&1"; then
     TOOLS_PRESENT+=("$tool")
   fi
@@ -169,6 +169,7 @@ if ((${#TOOLS_PRESENT[@]})); then
       expected='gh version 2.98.0'
       ;;
     sd)
+      # The v1.1.0 release binary inherits upstream's workspace version 1.0.0.
       version_command='sd --version'
       expected='sd 1.0.0'
       ;;

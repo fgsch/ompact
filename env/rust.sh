@@ -32,11 +32,12 @@ install_environment() {
   : "${CARGO_NEXTEST_VERSION:?CARGO_NEXTEST_VERSION must be set}"
 
   rust_target=
-  case "$(uname -m)" in
-  aarch64 | arm64) rust_target=aarch64-unknown-linux-gnu ;;
-  x86_64 | amd64) rust_target=x86_64-unknown-linux-gnu ;;
+  rust_arch="$(dpkg --print-architecture)"
+  case "$rust_arch" in
+  arm64) rust_target=aarch64-unknown-linux-gnu ;;
+  amd64) rust_target=x86_64-unknown-linux-gnu ;;
   *)
-    echo "unsupported architecture for rustup: $(uname -m)" >&2
+    echo "unsupported architecture for rustup: $rust_arch" >&2
     exit 1
     ;;
   esac

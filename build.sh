@@ -43,7 +43,6 @@ fi
 if [[ -e /tmp/ompact.smolmachine || -L /tmp/ompact.smolmachine ]]; then
   die "unexpected legacy sidecar exists: /tmp/ompact.smolmachine"
 fi
-rm -f "$OUTPUT"
 
 if (($# > 1)); then
   die "usage: $0 [environment[,environment...]]"
@@ -90,6 +89,7 @@ if [[ -n "$ENVIRONMENTS" ]]; then
 else
   printf 'no environments selected\n'
 fi
+rm -f "$OUTPUT"
 ENV_VOLUME_SPEC="$PROJECT_ROOT/env:/opt/ompact-env"
 ENV_VOLUME_CREATE="$ENV_VOLUME_SPEC:ro"
 

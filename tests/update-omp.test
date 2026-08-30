@@ -47,6 +47,7 @@ assert_file_contains "$workflow" '.prerelease == false'
 cp -- "$PROJECT_ROOT/Smolfile" "$WORKDIR/Smolfile"
 mkdir -- "$WORKDIR/tests"
 cp -- "$PROJECT_ROOT/tests/build.sh.test" "$WORKDIR/tests/build.sh.test"
+previous_version="$(sed -n 's/^omp_version=//p' "$WORKDIR/Smolfile")"
 
 new_version=v99.98.97
 arm64_sha="$(printf 'a%.0s' {1..64})"
@@ -62,7 +63,7 @@ assert_file_contains "$WORKDIR/Smolfile" 'jj_version=v0.44.0'
 assert_file_contains "$WORKDIR/tests/build.sh.test" "omp_version=$new_version"
 assert_file_contains "$WORKDIR/tests/build.sh.test" "omp_sha256=$arm64_sha"
 assert_file_contains "$WORKDIR/tests/build.sh.test" "omp_sha256=$amd64_sha"
-assert_file_not_contains "$WORKDIR/Smolfile" 'omp_version=v18.0.9'
+assert_file_not_contains "$WORKDIR/Smolfile" "omp_version=$previous_version"
 
 before_invalid="$(<"$WORKDIR/Smolfile")"
 if "$PROJECT_ROOT/scripts/update-omp.sh" "$new_version" invalid "$amd64_sha" "$WORKDIR" >/dev/null 2>&1; then
