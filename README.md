@@ -127,3 +127,8 @@ The build uses `smolvm pack create --single-file` and produces one executable
 without a `.smolmachine` sidecar. Redistribute and replace that executable
 as a whole. The format does not make the package host-independent or persist
 runtime state; macOS may also require additional notarization work.
+
+The artifact bundles third-party software (Debian packages, `omp`, `jj`,
+`fd`, `rg`, `gh`, `sd`, `ast-grep`, uv, and toolchain components) governed
+by their own upstream licenses; this repository's MIT license covers only
+the packaging code in this repository.
