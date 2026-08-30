@@ -61,7 +61,7 @@ bootstrap:
 
 - Debian package indexes use the signed `snapshot.debian.org` archive at
   `20260820T000000Z`.
-- `omp` uses release `v18.0.10`; the architecture-specific Linux binaries
+- `omp` uses release `v18.0.11`; the architecture-specific Linux binaries
   are verified against SHA-256 checksums in `Smolfile`.
 - A daily GitHub Actions workflow checks for newer `omp` releases, verifies
   both binaries, opens or updates a pull request, runs the repository
