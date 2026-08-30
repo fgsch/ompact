@@ -35,7 +35,7 @@ arm64_sha = sys.argv[3]
 amd64_sha = sys.argv[4]
 
 contents = {}
-for relative_path in ("Smolfile", "README.md", "tests/build.sh.test"):
+for relative_path in ("Smolfile", "tests/build.sh.test"):
     path = root / relative_path
     contents[path] = path.read_text()
 
@@ -67,14 +67,6 @@ contents[smolfile] = replace_once(
     contents[smolfile],
     r"(^amd64\)\n  omp_binary=omp-linux-x64\n  omp_sha256=)[0-9a-f]{64}$",
     rf"\g<1>{amd64_sha}",
-)
-
-readme = root / "README.md"
-contents[readme] = replace_once(
-    readme,
-    contents[readme],
-    r"`omp` uses release `v[0-9]+\.[0-9]+\.[0-9]+`;",
-    f"`omp` uses release `{version}`;",
 )
 
 test_file = root / "tests/build.sh.test"

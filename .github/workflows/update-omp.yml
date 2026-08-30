@@ -136,7 +136,7 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          if git diff --quiet -- Smolfile README.md tests/build.sh.test; then
+          if git diff --quiet && git diff --cached --quiet; then
             printf 'omp is already current\n'
             printf 'changed=false\n' >> "$GITHUB_OUTPUT"
             exit 0
@@ -145,7 +145,7 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git switch -C "$UPDATE_BRANCH"
-          git add Smolfile README.md tests/build.sh.test
+          git add -A
           git commit -m "build: update omp to $VERSION"
 
           if git ls-remote --exit-code origin "refs/heads/$UPDATE_BRANCH" >/dev/null 2>&1; then

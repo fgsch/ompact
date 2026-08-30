@@ -45,7 +45,6 @@ assert_file_contains "$workflow" '.draft == false'
 assert_file_contains "$workflow" '.prerelease == false'
 
 cp -- "$PROJECT_ROOT/Smolfile" "$WORKDIR/Smolfile"
-cp -- "$PROJECT_ROOT/README.md" "$WORKDIR/README.md"
 mkdir -- "$WORKDIR/tests"
 cp -- "$PROJECT_ROOT/tests/build.sh.test" "$WORKDIR/tests/build.sh.test"
 
@@ -60,7 +59,6 @@ assert_file_contains "$WORKDIR/Smolfile" "omp_version=$new_version"
 assert_file_contains "$WORKDIR/Smolfile" "omp_sha256=$arm64_sha"
 assert_file_contains "$WORKDIR/Smolfile" "omp_sha256=$amd64_sha"
 assert_file_contains "$WORKDIR/Smolfile" 'jj_version=v0.44.0'
-assert_file_contains "$WORKDIR/README.md" "omp\` uses release \`$new_version\`;"
 assert_file_contains "$WORKDIR/tests/build.sh.test" "omp_version=$new_version"
 assert_file_contains "$WORKDIR/tests/build.sh.test" "omp_sha256=$arm64_sha"
 assert_file_contains "$WORKDIR/tests/build.sh.test" "omp_sha256=$amd64_sha"
