@@ -124,7 +124,7 @@ set -e
 }
 
 # Verify selected tools are present and executable by the omp user
-REQUIRED_TOOLS=(python python3 fd rg gh sd sg ast-grep jj)
+REQUIRED_TOOLS=(python python3 fd rg gh sd ast-grep jj)
 for tool in "${REQUIRED_TOOLS[@]}"; do
   if ! "$PROJECT_ROOT/ompact" run -- /bin/sh -c \
     "command -v $tool >/dev/null 2>&1"; then
@@ -181,10 +181,6 @@ if ((${#TOOLS_PRESENT[@]})); then
       # The v1.1.0 release binary inherits upstream's workspace version 1.0.0.
       version_command='sd --version'
       expected='sd 1.0.0'
-      ;;
-    sg)
-      version_command='sg --version'
-      expected='0.45.2'
       ;;
     ast-grep)
       version_command='ast-grep --version'
