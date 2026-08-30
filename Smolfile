@@ -177,6 +177,7 @@ export USER=omp
 export LOGNAME=omp
 
 state_owner_uid=
+state_owner_gid=
 state_candidates=()
 if [[ -n ${PI_CODING_AGENT_DIR:-} ]]; then
   state_candidates+=( "$PI_CODING_AGENT_DIR" )
@@ -188,6 +189,10 @@ for state_path in "${state_candidates[@]}"; do
     printf "unable to inspect omp state path %s\n" "$state_path" >&2
     exit 1
   fi
+  if ! state_owner_gid="$(/usr/bin/stat -c "%g" -- "$state_path")"; then
+    printf "unable to inspect omp state path %s\n" "$state_path" >&2
+    exit 1
+  fi
   break
 done
 
@@ -196,19 +201,30 @@ if [[ -n "$state_owner_uid" ]]; then
     printf "omp state path owner is not numeric: %s\n" "$state_owner_uid" >&2
     exit 1
   fi
-  if [[ "$state_owner_uid" == 0 ]]; then
+  if [[ ! "$state_owner_gid" =~ ^[0-9]+$ ]]; then
+    printf "omp state group is not numeric: %s\n" "$state_owner_gid" >&2
+    exit 1
+  fi
+  if [[ "$state_owner_uid" == 0 || "$state_owner_gid" == 0 ]]; then
     printf "omp state path %s is owned by root; mount a writable directory owned by a non-root host user\n" "$state_path" >&2
     exit 1
   fi
 
   omp_uid="$(/usr/bin/id -u omp)"
+  omp_gid="$(/usr/bin/id -g omp)"
   if [[ "$state_owner_uid" != "$omp_uid" ]]; then
     if /usr/bin/getent passwd "$state_owner_uid" >/dev/null 2>&1; then
       printf "omp state owner uid %s is already assigned to another guest account; use a different non-root host owner\n" "$state_owner_uid" >&2
       exit 1
     fi
-    /usr/sbin/usermod --uid "$state_owner_uid" omp
-    /usr/bin/chown "$state_owner_uid:$(/usr/bin/id -g omp)" /home/omp
+  fi
+  if [[ "$state_owner_gid" != "$omp_gid" ]] &&
+    ! /usr/bin/getent group "$state_owner_gid" >/dev/null 2>&1; then
+    /usr/sbin/groupmod --gid "$state_owner_gid" omp
+  fi
+  if [[ "$state_owner_uid" != "$omp_uid" || "$state_owner_gid" != "$omp_gid" ]]; then
+    /usr/sbin/usermod --uid "$state_owner_uid" --gid "$state_owner_gid" omp
+    /usr/bin/chown "$state_owner_uid:$state_owner_gid" /home/omp
   fi
 fi
 
