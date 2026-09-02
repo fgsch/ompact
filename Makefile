@@ -27,6 +27,7 @@ syntax: ## Check shell syntax
 
 lint: ## Run ShellCheck
 	shellcheck build.sh scripts/*.sh tests/*.test env/*.sh
+
 check: syntax lint test ## Run syntax, lint, and build tests
 
 smoke: build runtime-test ## Build ompact and run the runtime test
