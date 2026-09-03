@@ -23,15 +23,15 @@ apt-get install -y --no-install-recommends \
 rm -rf /var/lib/apt/lists/*
 ' ''',
   '''bash -ceu '
-omp_version=v18.1.4
+omp_version=v18.1.5
 case "$(dpkg --print-architecture)" in
 arm64)
   omp_binary=omp-linux-arm64
-  omp_sha256=e8b6fcfda4df32e7f22fca98107b48eea9e4edf2201dc1132703fb615550237f
+  omp_sha256=f37035385994200a4f4d48407ad11655854930ab6e54185d2d870697b6aa6b00
   ;;
 amd64)
   omp_binary=omp-linux-x64
-  omp_sha256=6aef8347b6e3790da2bb39dc5911a7a3587c5cea99b04eb7ea0c793ecb4f8faf
+  omp_sha256=4e36df75e0623b9e4f235bb49a081eb11d74d6dd3e9fe4bb2911b13390d3f43b
   ;;
 *)
   printf "unsupported architecture for omp: %s\n" "$(dpkg --print-architecture)" >&2
