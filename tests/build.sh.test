@@ -57,7 +57,7 @@ assert_file_contains "$PROJECT_ROOT/Smolfile" \
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
   'omp_sha256=2b2c785bbbafd3b43fb6096e4ae63a0342c4d8069de2f875a9b76ea9947c2383'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'jj_version=v0.44.0'
+  'jj_version=v0.45.1'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
   "jj-\${jj_version}-aarch64-unknown-linux-musl.tar.gz"
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
@@ -65,9 +65,9 @@ assert_file_contains "$PROJECT_ROOT/Smolfile" \
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
   "https://github.com/jj-vcs/jj/releases/download/\$jj_version/\$jj_archive"
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'jj_sha256=60d42fa2a9abaa445eff10cd2087458562aaad5a54b90309e5a3787ecc985ff2'
+  'jj_sha256=7349a43dd5a20dbc998b10114daa0ee63d2ab863fb822c7eb6b0ebca5903cc69'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'jj_sha256=0a07bab4641a55fd2bc2fd1563ba3a3f9a577584086ad74086a1c5b69b3ffce9'
+  'jj_sha256=f35438350b5d61963aac5dd74ede510b31d6b9690769d1a6268cf058cc825f72'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
   "install -m 0755 \"\$jj_extract/jj\" /usr/local/bin/jj"
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
@@ -83,15 +83,15 @@ assert_file_contains "$PROJECT_ROOT/Smolfile" \
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
   'rg_sha256=33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'gh_version=v2.98.0'
+  'gh_version=v2.100.0'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'gh_2.98.0_linux_arm64.tar.gz'
+  'gh_2.100.0_linux_arm64.tar.gz'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'gh_2.98.0_linux_amd64.tar.gz'
+  'gh_2.100.0_linux_amd64.tar.gz'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'gh_sha256=cf689084f3a3618f7eae4a2420d335d74626d65f5e594b9828d125d69f800d86'
+  'gh_sha256=ea4e7a581a32ccad6cc7923cb1576ac5859ba4b9a16ab22eb8f8a96e78e2e961'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'gh_sha256=3b8ac6b30336802fc1a858d7c084e11cdf24ac1a761ca90b68022d7d729208de'
+  'gh_sha256=e4d4bb4498e8d007abe545b6568926793ace1b6447da598294a610018cb164be'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
   "https://github.com/cli/cli/releases/download/\$gh_version/\$gh_archive"
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
@@ -111,15 +111,15 @@ assert_file_contains "$PROJECT_ROOT/Smolfile" \
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
   "install -m 0755 \"\$sd_extract/\${sd_archive%.tar.gz}/sd\" /usr/local/bin/sd"
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'sg_version=0.45.2'
+  'sg_version=0.45.3'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
   'app-aarch64-unknown-linux-gnu.zip'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
   'app-x86_64-unknown-linux-gnu.zip'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'sg_sha256=e67ee2f5928b4d77a472114edf6e227d90fefe22fa47e7a78db187c55d206564'
+  'sg_sha256=b39cfbc58da4b869a88b8a4bc57bd5deb0d24541e704cf7c257da7b53ec81c8f'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'sg_sha256=67aff72dd2994bf152fcc3a8a09cf93b13193abe59f39393095167c729af2015'
+  'sg_sha256=f8ac830881339d1edee6b2652f54798c0f4da5a827f2db38a08ee31117783ce8'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
   "https://github.com/ast-grep/ast-grep/releases/download/\$sg_version/\$sg_archive"
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
@@ -139,7 +139,7 @@ assert_file_not_contains "$PROJECT_ROOT/env/python.sh" \
 assert_file_not_contains "$PROJECT_ROOT/Smolfile" \
   'https://omp.sh/install'
 assert_file_contains "$PROJECT_ROOT/env/python.sh" \
-  'UV_INSTALLER_SHA256=92e8554321e2bde08c9b1445dae47a65360f885274f31df51cdc2f9faa84e001'
+  'UV_INSTALLER_SHA256=a3196b75f697a1adaa5e4af34ffba7629c710931ab1dac33bab59ecf228080bb'
 assert_file_contains "$PROJECT_ROOT/env/python.sh" \
   "curl -fsSL -o \"\$uv_install_script\""
 assert_file_contains "$PROJECT_ROOT/env/python.sh" \
@@ -250,9 +250,9 @@ export SMOLFILE="$WORKDIR/unexpected-smolfile"
 export SMOLVM_BIN="$WORKDIR/unexpected-smolvm"
 export SMOLVM_LOG
 export SMOLVM_STATUS_COUNT="$STATUS_COUNT"
-export RUST_TOOLCHAIN='1.98.0'
-export GO_VERSION='go1.27.0'
-export UV_VERSION='0.12.7'
+export RUST_TOOLCHAIN='1.98.1'
+export GO_VERSION='go1.27.1'
+export UV_VERSION='0.12.10'
 export UV_CACHE_DIR='/var/cache/uv'
 export CARGO_AUDIT_VERSION='0.22.2'
 export CARGO_DENY_VERSION='0.20.2'

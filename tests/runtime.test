@@ -175,7 +175,7 @@ if ((${#TOOLS_PRESENT[@]})); then
       ;;
     gh)
       version_command='gh --version'
-      expected='gh version 2.98.0'
+      expected='gh version 2.100.0'
       ;;
     sd)
       # The v1.1.0 release binary inherits upstream's workspace version 1.0.0.
@@ -184,7 +184,7 @@ if ((${#TOOLS_PRESENT[@]})); then
       ;;
     ast-grep)
       version_command='ast-grep --version'
-      expected='0.45.2'
+      expected='0.45.3'
       ;;
     esac
     OUTPUT="$("$PROJECT_ROOT/ompact" run -- \
