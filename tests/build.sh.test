@@ -40,6 +40,8 @@ assert_file_contains "$PROJECT_ROOT/Smolfile" \
   'image = "debian:trixie-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132"'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
   'cmd = ["--"]'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'workdir = "/workspace"'
 assert_file_not_contains "$PROJECT_ROOT/build.sh" \
   'SMOLVM_BIN'
 assert_file_not_contains "$PROJECT_ROOT/build.sh" \

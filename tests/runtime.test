@@ -96,6 +96,13 @@ printf 'workspace-ok\n' >"$WORKSPACE/marker"
   exit 1
 }
 
+[[ "$("$PROJECT_ROOT/ompact" run \
+  -v "$WORKSPACE:/workspace:ro" \
+  -- /bin/pwd)" == /workspace ]] || {
+  printf 'runtime working directory was not /workspace\n' >&2
+  exit 1
+}
+
 set +e
 "$PROJECT_ROOT/ompact" run \
   -v "$HOST_STATE:/home/omp/.omp:ro" \

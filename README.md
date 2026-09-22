@@ -85,9 +85,9 @@ unexpected output files cause the build to abort.
 
 ## Run
 
-Runtime networking is disabled by default. Mount a workspace and writable
+Runtime networking is disabled by default. The packaged runtime starts in
+`/workspace` by default, so mount the project there and provide a writable
 OMP state directory; add `--net` only when the workload needs network access:
-
 ```sh
 mkdir -p "$HOME/.omp"
 ./ompact run -it --net \

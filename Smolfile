@@ -2,6 +2,7 @@ image = "debian:trixie-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182c
 cpus = 4
 memory = 8192
 net = false
+workdir = "/workspace"
 
 env = [
   "PATH=/usr/local/cargo/bin:/usr/local/go/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin",
