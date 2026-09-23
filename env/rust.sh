@@ -6,8 +6,8 @@ RUST_TOOLCHAIN=${RUST_TOOLCHAIN:-1.98.1}
 CARGO_AUDIT_VERSION=${CARGO_AUDIT_VERSION:-0.22.2}
 CARGO_DENY_VERSION=${CARGO_DENY_VERSION:-0.20.2}
 CARGO_NEXTEST_VERSION=${CARGO_NEXTEST_VERSION:-0.9.143}
-RUSTUP_HOME=${RUSTUP_HOME:-/usr/local/rustup}
-CARGO_HOME=${CARGO_HOME:-/usr/local/cargo}
+RUSTUP_HOME=${RUSTUP_HOME:-/home/omp/.rustup}
+CARGO_HOME=${CARGO_HOME:-/home/omp/.cargo}
 
 export RUST_TOOLCHAIN CARGO_AUDIT_VERSION CARGO_DENY_VERSION CARGO_NEXTEST_VERSION
 export RUSTUP_HOME CARGO_HOME
@@ -61,7 +61,7 @@ install_environment() {
     rustfmt clippy rust-analyzer
   "$CARGO_HOME/bin/rustup" target add --toolchain "$RUST_TOOLCHAIN" wasm32-wasip1
 
-  install -d -m 0777 "$CARGO_HOME/registry" "$CARGO_HOME/git"
+  install -d -m 0755 "$CARGO_HOME/registry" "$CARGO_HOME/git"
   install -d -m 0755 "$CARGO_HOME/bin"
   cargo install --locked --version "$CARGO_AUDIT_VERSION" cargo-audit
   cargo install --locked --version "$CARGO_DENY_VERSION" cargo-deny

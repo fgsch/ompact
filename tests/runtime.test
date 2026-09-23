@@ -235,4 +235,20 @@ else
   printf 'no language environments selected; skipping tool access check\n'
 fi
 
+if [[ " ${TOOLS_PRESENT[*]} " == *" cargo "* ]]; then
+  # Guest-side variables are intentionally expanded by the inner shell.
+  # shellcheck disable=SC2016
+  "$PROJECT_ROOT/ompact" run -- \
+    /usr/sbin/runuser --user omp --preserve-environment -- \
+    /bin/sh -eu -c '
+      for writable_path in "$RUSTUP_HOME/tmp" "$CARGO_HOME/registry"; do
+        test -d "$writable_path"
+        test -w "$writable_path"
+        probe="$writable_path/.ompact-write-test"
+        touch "$probe"
+        rm -f "$probe"
+      done
+    '
+fi
+
 printf 'runtime harness passed\n'

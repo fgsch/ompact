@@ -5,7 +5,10 @@ net = false
 workdir = "/workspace"
 
 env = [
-  "PATH=/usr/local/cargo/bin:/usr/local/go/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin",
+  "HOME=/home/omp",
+  "RUSTUP_HOME=/home/omp/.rustup",
+  "CARGO_HOME=/home/omp/.cargo",
+  "PATH=/home/omp/.cargo/bin:/usr/local/cargo/bin:/usr/local/go/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin",
   "TMPDIR=/tmp",
 ]
 
@@ -257,6 +260,10 @@ if [[ -n "$state_owner_uid" ]]; then
   if [[ "$state_owner_uid" != "$omp_uid" || "$state_owner_gid" != "$omp_gid" ]]; then
     /usr/sbin/usermod --uid "$state_owner_uid" --gid "$state_owner_gid" omp
     /usr/bin/chown "$state_owner_uid:$state_owner_gid" /home/omp
+    for tool_path in /home/omp/.cargo /home/omp/.rustup; do
+      [[ -e "$tool_path" ]] || continue
+      /usr/bin/chown -R "$state_owner_uid:$state_owner_gid" -- "$tool_path"
+    done
   fi
 fi
 
