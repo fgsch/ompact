@@ -21,6 +21,31 @@ apt-get -o Acquire::Check-Valid-Until=false update
 apt-get install -y --no-install-recommends \
   ca-certificates curl bash git openssh-client \
   build-essential pkg-config libssl-dev jq tar python3 python-is-python3
+install -d -m 0755 /etc/ssh
+github_meta="$(mktemp)"
+github_known_hosts="$(mktemp /etc/ssh/ssh_known_hosts.XXXXXX)"
+cleanup_github_keys() {
+  rm -f -- "$github_meta" "$github_known_hosts"
+}
+trap cleanup_github_keys EXIT
+curl -fsSL --connect-timeout 10 --speed-limit 1024 --speed-time 30 \
+  -H "Accept: application/vnd.github+json" \
+  "https://api.github.com/meta" \
+  -o "$github_meta"
+jq -e \
+  ".ssh_keys | type == \"array\" and length > 0 and all(.[]; type == \"string\" and length > 0)" \
+  "$github_meta" >/dev/null
+printf "%s\n" "# GitHub SSH host keys published by https://api.github.com/meta" \
+  >"$github_known_hosts"
+jq -e -r ".ssh_keys[] | \"github.com \" + ." "$github_meta" \
+  >>"$github_known_hosts"
+chmod 0644 "$github_known_hosts"
+mv -f -- "$github_known_hosts" /etc/ssh/ssh_known_hosts
+rm -f -- "$github_meta"
+github_meta=
+github_known_hosts=
+trap - EXIT
+
 rm -rf /var/lib/apt/lists/*
 ' ''',
   '''bash -ceu '
@@ -168,6 +193,12 @@ if ! id -u omp >/dev/null 2>&1; then
 fi
 usermod --gid omp --home /home/omp --shell /usr/sbin/nologin omp
 install -d -m 0755 -o omp -g omp /home/omp
+cat >/home/omp/.gitconfig <<\EOF
+[safe]
+directory = /workspace
+EOF
+chown omp:omp /home/omp/.gitconfig
+chmod 0644 /home/omp/.gitconfig
 
 cat > /usr/local/bin/omp <<\EOF
 #!/usr/bin/env bash

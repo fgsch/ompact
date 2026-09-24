@@ -88,6 +88,8 @@ set -e
 
 WORKSPACE="$WORKDIR/workspace"
 mkdir "$WORKSPACE"
+git -C "$WORKSPACE" init -q
+
 printf 'workspace-ok\n' >"$WORKSPACE/marker"
 [[ "$("$PROJECT_ROOT/ompact" run \
   -v "$WORKSPACE:/workspace:ro" \
@@ -102,6 +104,34 @@ printf 'workspace-ok\n' >"$WORKSPACE/marker"
   printf 'runtime working directory was not /workspace\n' >&2
   exit 1
 }
+[[ "$("$PROJECT_ROOT/ompact" run \
+  -v "$WORKSPACE:/workspace:ro" \
+  -- /usr/sbin/runuser --user omp -- /usr/bin/env \
+  HOME=/home/omp USER=omp LOGNAME=omp \
+  /usr/bin/git config --global --get-all safe.directory)" == /workspace ]] || {
+  printf 'global Git config did not trust /workspace\n' >&2
+  exit 1
+}
+[[ "$("$PROJECT_ROOT/ompact" run \
+  -v "$WORKSPACE:/workspace:ro" \
+  -- /usr/sbin/runuser --user omp -- /usr/bin/env \
+  HOME=/home/omp USER=omp LOGNAME=omp \
+  /usr/bin/git -C /workspace rev-parse --show-toplevel)" == /workspace ]] || {
+  printf 'Git did not accept the mounted /workspace repository\n' >&2
+  exit 1
+}
+
+GITHUB_KNOWN_HOSTS="$("$PROJECT_ROOT/ompact" run -- \
+  /usr/bin/ssh-keygen -F github.com -f /etc/ssh/ssh_known_hosts)"
+for github_key in \
+  'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' \
+  'ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRrYMjNuG5N87uRgg6CLrbo5wAdT/y6v0mKV0U2w0WZ2YB/++Tpockg=' \
+  'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCj7ndNxQowgcQnjshcLrqPEiiphnt+VTTvDP6mHBL9j1aNUkY4Ue1gvwnGLVlOhGeYrnZaMgRK6+PKCUXaDbC7qtbW8gIkhL7aGCsOr/C56SJMy/BCZfxd1nWzAOxSDPgVsmerOBYfNqltV9/hWCqBywINIR+5dIg6JTJ72pcEpEjcYgXkE2YEFXV1JHnsKgbLWNlhScqb2UmyRkQyytRLtL+38TGxkxCflmO+5Z8CSSNY7GidjMIZ7Q4zMjA2n1nGrlTDkzwDCsw+wqFPGQA179cnfGWOWRVruj16z6XyvxvjJwbz0wQZ75XK5tKSb7FNyeIEs4TT4jk+S4dhPeAUC5y+bDYirYgM4GC7uEnztnZyaVWQ7B381AK4Qdrwt51ZqExKbQpTUNn+EjqoTwvqNj4kqx5QUCI0ThS/YkOxJCXmPUWZbhjpCg56i+2aB6CmK2JGhn57K5mj0MNdBXA4/WnwH6XoPWJzK5Nyu2zB3nAZp+S5hpQs+p1vN1/wsjk='; do
+  [[ "$GITHUB_KNOWN_HOSTS" == *"github.com $github_key"* ]] || {
+    printf 'missing GitHub SSH host key: %s\n' "${github_key%% *}" >&2
+    exit 1
+  }
+done
 
 set +e
 "$PROJECT_ROOT/ompact" run \

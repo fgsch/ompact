@@ -96,6 +96,23 @@ mkdir -p "$HOME/.omp"
   -- /usr/local/bin/omp
 ```
 
+The packaged VM sets the `omp` user's global Git config to trust
+`/workspace`, allowing Git to operate on host-mounted repositories without
+using a repository-local config.
+The image installs GitHub's currently published SSH host keys from
+`https://api.github.com/meta` into `/etc/ssh/ssh_known_hosts` for system-wide
+host verification.
+When Git or SSH needs host authentication, add `--ssh-agent` to the run
+command. The host must expose its agent through `SSH_AUTH_SOCK`; smolvm
+forwards signing requests without copying private keys into the VM:
+
+```sh
+./ompact run --ssh-agent -it --net \
+  -v "$PWD:/workspace" \
+  -v "$HOME/.omp:/home/omp/.omp" \
+  -- /usr/local/bin/omp
+```
+
 Model credentials are launch-time inputs supplied with `-e` or smolvm's
 secret mechanism. They are not embedded in the artifact.
 
@@ -117,6 +134,7 @@ network access unless cached.
 
 | Concern | Behavior |
 | --- | --- |
+| SSH credentials | `--ssh-agent` forwards the host agent's signing interface; private keys remain on the host. |
 | Runtime identity | The wrapper runs workloads as the non-root `omp` user. Explicit guest commands that bypass the wrapper are outside this guarantee. |
 | State mounts | `$HOME/.omp` exposes authentication, sessions, and runtime state. Use a dedicated writable directory owned by a non-root host user; root-owned `0700` sources are rejected. |
 | Network | `build.sh` enables networking only for the temporary builder. Runtime callers opt in with `--net`; this is not an external no-network guarantee. |

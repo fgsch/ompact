@@ -42,6 +42,30 @@ assert_file_contains "$PROJECT_ROOT/Smolfile" \
   'cmd = ["--"]'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
   'workdir = "/workspace"'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'cat >/home/omp/.gitconfig <<\EOF'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  '[safe]'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'directory = /workspace'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  "github_meta=\"\$(mktemp)\""
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'https://api.github.com/meta'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  '.ssh_keys | type == \"array\" and length > 0 and all'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  "-o \"\$github_meta\""
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'github.com \" + .'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  "chmod 0644 \"\$github_known_hosts\""
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  "mv -f -- \"\$github_known_hosts\" /etc/ssh/ssh_known_hosts"
+
+assert_file_not_contains "$PROJECT_ROOT/Smolfile" \
+  'git config --global'
+
 assert_file_not_contains "$PROJECT_ROOT/build.sh" \
   'SMOLVM_BIN'
 assert_file_not_contains "$PROJECT_ROOT/build.sh" \
