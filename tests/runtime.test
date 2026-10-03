@@ -212,7 +212,7 @@ if ((${#TOOLS_PRESENT[@]})); then
       ;;
     gh)
       version_command='gh --version'
-      expected='gh version 2.100.0'
+      expected='gh version 2.102.0'
       ;;
     sd)
       # The v1.1.0 release binary inherits upstream's workspace version 1.0.0.

@@ -71,3 +71,4 @@ if "$PROJECT_ROOT/scripts/update-omp.sh" "$new_version" invalid "$amd64_sha" "$W
 fi
 [[ "$(<"$WORKDIR/Smolfile")" == "$before_invalid" ]] ||
   fail 'invalid input changed Smolfile'
+printf 'update-omp harness passed\n'
