@@ -241,13 +241,26 @@ if [[ " ${TOOLS_PRESENT[*]} " == *" cargo "* ]]; then
   "$PROJECT_ROOT/ompact" run -- \
     /usr/sbin/runuser --user omp --preserve-environment -- \
     /bin/sh -eu -c '
-      for writable_path in "$RUSTUP_HOME/tmp" "$CARGO_HOME/registry"; do
+      toolchain_sysroot=$(rustc --print sysroot)
+      case "$toolchain_sysroot" in
+        "$RUSTUP_HOME"/toolchains/*) ;;
+        *) exit 1 ;;
+      esac
+      for readonly_path in "$RUSTUP_HOME" "$toolchain_sysroot"; do
+        test -d "$readonly_path"
+        test ! -w "$readonly_path"
+      done
+      test -x "$toolchain_sysroot/bin/rustc"
+      test ! -w "$toolchain_sysroot/bin/rustc"
+      for writable_path in \
+        "$CARGO_HOME" "$CARGO_HOME/bin" "$CARGO_HOME/registry" "$CARGO_HOME/git"; do
         test -d "$writable_path"
         test -w "$writable_path"
         probe="$writable_path/.ompact-write-test"
         touch "$probe"
         rm -f "$probe"
       done
+      test -z "$(find "$CARGO_HOME/registry" -mindepth 1 -print -quit)"
     '
 fi
 

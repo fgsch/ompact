@@ -55,13 +55,14 @@ The first `build.sh` argument selects comma-separated environment names.
 | Script command | Responsibility |
 | --- | --- |
 | `defaults` | Print build-time `KEY=VALUE` defaults. |
-| `install` | Install the compiler and environment tools. |
+| `install-sdk` | Install the compiler/toolchain as root. |
+| `install-tools` | Install language tools as `omp`. |
+| `install` | Install one-stage environments. |
 | `check` | Verify the tools and run a minimal probe. |
 
 Add an executable `env/<name>.sh` implementing those commands. Selected
 scripts are mounted read-only into the builder, where they install their
 tools; omitted environments do not provide their compiler, tools, or caches.
-The scripts are not runtime dependencies of the packaged executable.
 
 ## Build overrides
 

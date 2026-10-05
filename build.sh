@@ -118,8 +118,10 @@ if ((${#SELECTED_ENVIRONMENTS[@]})); then
   for environment_name in "${SELECTED_ENVIRONMENTS[@]}"; do
     case "$environment_name" in
     rust)
+      smolvm machine exec --name "$VM_NAME" -- \
+        /bin/sh "/opt/ompact-env/$environment_name.sh" install-sdk
       smolvm machine exec --name "$VM_NAME" --user omp -- \
-        /bin/sh "/opt/ompact-env/$environment_name.sh" install
+        /bin/sh "/opt/ompact-env/$environment_name.sh" install-tools
       smolvm machine exec --name "$VM_NAME" --user omp -- \
         /bin/sh "/opt/ompact-env/$environment_name.sh" check
       ;;

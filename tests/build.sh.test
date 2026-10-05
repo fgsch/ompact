@@ -276,7 +276,7 @@ if ((environment_check)); then
     fi
   done < "$SMOLVM_LOG"
   case "$environment_script" in
-  */go.sh)
+  */go.sh | */rust.sh)
     ((selected_sdk_install == 1 && selected_tools_install == 1 && selected_check == 1)) ||
       exit 1
     ;;
@@ -286,8 +286,10 @@ if ((environment_check)); then
     ;;
   esac
 fi
+printf 'environment harness passed\n'
 printf '%q ' packaged-launcher "$@" >> "$SMOLVM_LOG"
 printf '\n' >> "$SMOLVM_LOG"
+
 exit 0
 FAKE_LAUNCHER
     chmod +x "$output"
@@ -315,7 +317,7 @@ export SMOLVM_BIN="$WORKDIR/unexpected-smolvm"
 export SMOLVM_LOG
 export SMOLVM_STATUS_COUNT="$STATUS_COUNT"
 export RUST_TOOLCHAIN='1.99.0'
-export RUSTUP_HOME='/home/omp/.rustup'
+export RUSTUP_HOME='/usr/local/rustup'
 export CARGO_HOME='/home/omp/.cargo'
 export GO_VERSION='go1.27.1'
 export UV_VERSION='0.12.22'
@@ -323,6 +325,7 @@ export UV_CACHE_DIR='/var/cache/uv'
 export CARGO_AUDIT_VERSION='0.22.2'
 export CARGO_DENY_VERSION='0.20.2'
 export CARGO_NEXTEST_VERSION='0.9.146'
+export CARGO_LLVM_COV_VERSION='0.9.1'
 export GOPLS_VERSION='0.23.0'
 export GOVULNCHECK_VERSION='1.8.0'
 export STATICCHECK_VERSION='0.8.1'
@@ -490,12 +493,7 @@ run_case() {
       fail "$case_name machine create is missing environment volume"
     for environment_name in rust go python; do
       case "$environment_name" in
-      rust)
-        machine_exec_install="machine exec --name $vm_name --user omp -- /bin/sh /opt/ompact-env/$environment_name.sh install "
-        machine_exec_check="machine exec --name $vm_name --user omp -- /bin/sh /opt/ompact-env/$environment_name.sh check "
-        packaged_check="packaged-launcher run --user omp -v $environment_volume -- /bin/sh /opt/ompact-env/$environment_name.sh check "
-        ;;
-      go)
+      rust | go)
         machine_exec_install="machine exec --name $vm_name -- /bin/sh /opt/ompact-env/$environment_name.sh install-sdk "
         machine_exec_tools_install="machine exec --name $vm_name --user omp -- /bin/sh /opt/ompact-env/$environment_name.sh install-tools "
         machine_exec_check="machine exec --name $vm_name --user omp -- /bin/sh /opt/ompact-env/$environment_name.sh check "
@@ -509,8 +507,9 @@ run_case() {
       esac
       if [[ " ${expected_environments[*]} " == *" $environment_name "* ]]; then
         assert_log_line_equals "$machine_exec_install"
-        if [[ "$environment_name" == go ]]; then
+        if [[ "$environment_name" == go || "$environment_name" == rust ]]; then
           assert_log_line_equals "$machine_exec_tools_install"
+          assert_log_order "$machine_exec_install" "$machine_exec_tools_install"
         fi
         assert_log_line_equals "$machine_exec_check"
         assert_log_line_equals "$packaged_check"
@@ -521,6 +520,7 @@ run_case() {
             "CARGO_AUDIT_VERSION=$CARGO_AUDIT_VERSION" \
             "CARGO_DENY_VERSION=$CARGO_DENY_VERSION" \
             "CARGO_NEXTEST_VERSION=$CARGO_NEXTEST_VERSION" \
+            "CARGO_LLVM_COV_VERSION=$CARGO_LLVM_COV_VERSION" \
             "RUSTUP_HOME=$RUSTUP_HOME" \
             "CARGO_HOME=$CARGO_HOME"; do
             [[ "$create_invocation" == *"--env $expected_env"* ]] ||
@@ -552,7 +552,7 @@ run_case() {
         esac
       else
         assert_log_not_contains "$machine_exec_install"
-        if [[ "$environment_name" == go ]]; then
+        if [[ "$environment_name" == go || "$environment_name" == rust ]]; then
           assert_log_not_contains "$machine_exec_tools_install"
         fi
         assert_log_not_contains "$machine_exec_check"
