@@ -67,7 +67,7 @@ EOF
   installed_go_version=
   need_go_install=0
   if [ -x "$go_root/bin/go" ]; then
-    installed_go_version=$("$go_root/bin/go" version)
+    installed_go_version=$(XDG_CONFIG_HOME="$tmpdir/config" "$go_root/bin/go" version)
   else
     need_go_install=1
   fi
@@ -199,6 +199,10 @@ install_tools() {
     exit 1
   }
 
+  XDG_CONFIG_HOME="$HOME/.config"
+  export XDG_CONFIG_HOME
+  "$go_root/bin/go" telemetry off
+
   "$go_root/bin/go" install "golang.org/x/tools/gopls@v$GOPLS_VERSION"
   "$go_root/bin/go" install "golang.org/x/vuln/cmd/govulncheck@v$GOVULNCHECK_VERSION"
   "$go_root/bin/go" install "honnef.co/go/tools/cmd/staticcheck@v$STATICCHECK_VERSION"
@@ -215,6 +219,13 @@ check_environment() {
       exit 1
     }
   done
+  XDG_CONFIG_HOME="$HOME/.config"
+  export XDG_CONFIG_HOME
+  telemetry_mode=$("$go_root/bin/go" env GOTELEMETRY)
+  [ "$telemetry_mode" = off ] || {
+    printf 'Go telemetry is not disabled: %s\n' "$telemetry_mode" >&2
+    exit 1
+  }
 
   assert_go_install_layout
 

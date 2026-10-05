@@ -260,7 +260,8 @@ if [[ -n "$state_owner_uid" ]]; then
   if [[ "$state_owner_uid" != "$omp_uid" || "$state_owner_gid" != "$omp_gid" ]]; then
     /usr/sbin/usermod --uid "$state_owner_uid" --gid "$state_owner_gid" omp
     /usr/bin/chown "$state_owner_uid:$state_owner_gid" /home/omp
-    for tool_path in /home/omp/.cargo /home/omp/.rustup /home/omp/go /home/omp/.cache; do
+    for tool_path in /home/omp/.cargo /home/omp/.rustup \
+      /home/omp/go /home/omp/.cache /home/omp/.config/go/telemetry; do
       [[ -e "$tool_path" ]] || continue
       /usr/bin/chown -R "$state_owner_uid:$state_owner_gid" -- "$tool_path"
     done

@@ -259,6 +259,7 @@ if [[ " ${TOOLS_PRESENT[*]} " == *" go "* ]]; then
     /bin/sh -eu -c '
       go_bin=/usr/local/go/bin/go
       go_root=$("$go_bin" env GOROOT)
+      test "$("$go_bin" env GOTELEMETRY)" = off
       test "$go_root" = /usr/local/go
       for readonly_path in "$go_root" "$go_root/bin/go" "$go_root/bin/gofmt"; do
         test -e "$readonly_path"
