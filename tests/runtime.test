@@ -251,4 +251,57 @@ if [[ " ${TOOLS_PRESENT[*]} " == *" cargo "* ]]; then
     '
 fi
 
+if [[ " ${TOOLS_PRESENT[*]} " == *" go "* ]]; then
+  # Guest-side variables are intentionally expanded by the inner shell.
+  # shellcheck disable=SC2016
+  "$PROJECT_ROOT/ompact" run -- \
+    /usr/sbin/runuser --user omp --preserve-environment -- \
+    /bin/sh -eu -c '
+      go_bin=/usr/local/go/bin/go
+      go_root=$("$go_bin" env GOROOT)
+      test "$go_root" = /usr/local/go
+      for readonly_path in "$go_root" "$go_root/bin/go" "$go_root/bin/gofmt"; do
+        test -e "$readonly_path"
+        test ! -w "$readonly_path"
+      done
+      gopath=$("$go_bin" env GOPATH)
+      gobin=$("$go_bin" env GOBIN)
+      gomodcache=$("$go_bin" env GOMODCACHE)
+      gocache=$("$go_bin" env GOCACHE)
+      test "$gopath" = /home/omp/go
+      test -z "$gobin" || test "$gobin" = "$gopath/bin"
+      test "$gomodcache" = "$gopath/pkg/mod"
+      test "$gocache" = /home/omp/.cache/go-build
+      gobin=${gobin:-$gopath/bin}
+      for writable_path in \
+        "$gopath" "$gobin" "$gopath/pkg" "$gomodcache" \
+        "$(dirname "$gocache")" "$gocache"; do
+        test -d "$writable_path"
+        test -w "$writable_path"
+      done
+      for installed_tool in gopls govulncheck staticcheck golangci-lint; do
+        test -x "$gobin/$installed_tool"
+      done
+      unexpected_path=$(find "$gopath" -mindepth 1 -maxdepth 1 \
+        ! -name bin ! -name pkg -print -quit)
+      test -z "$unexpected_path"
+      unexpected_path=$(find "$gopath/pkg" -mindepth 1 -maxdepth 1 \
+        ! -name mod -print -quit)
+      test -z "$unexpected_path"
+      unexpected_path=$(find "$(dirname "$gocache")" -mindepth 1 -maxdepth 1 \
+        ! -name go-build -print -quit)
+      test -z "$unexpected_path"
+      for empty_path in "$gomodcache" "$gocache"; do
+        test -z "$(find "$empty_path" -mindepth 1 -print -quit)"
+      done
+      for writable_path in "$gomodcache" "$gocache"; do
+        probe="$writable_path/.ompact-write-test"
+        mkdir "$probe"
+        touch "$probe/file"
+        rm -f "$probe/file"
+        rmdir "$probe"
+      done
+    '
+fi
+
 printf 'runtime harness passed\n'

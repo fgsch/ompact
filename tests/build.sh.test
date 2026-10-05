@@ -254,6 +254,8 @@ else
 fi
 if ((environment_check)); then
   selected_install=0
+  selected_sdk_install=0
+  selected_tools_install=0
   selected_check=0
   while IFS= read -r invocation; do
     if [[ "$invocation" == machine\ exec* &&
@@ -261,12 +263,28 @@ if ((environment_check)); then
       selected_install=1
     fi
     if [[ "$invocation" == machine\ exec* &&
+      "$invocation" == *" ${environment_script} install-sdk " ]]; then
+      selected_sdk_install=1
+    fi
+    if [[ "$invocation" == machine\ exec* &&
+      "$invocation" == *" ${environment_script} install-tools " ]]; then
+      selected_tools_install=1
+    fi
+    if [[ "$invocation" == machine\ exec* &&
       "$invocation" == *" ${environment_script} check " ]]; then
       selected_check=1
     fi
   done < "$SMOLVM_LOG"
-  ((selected_install == 1 && selected_check == 1)) ||
-    exit 1
+  case "$environment_script" in
+  */go.sh)
+    ((selected_sdk_install == 1 && selected_tools_install == 1 && selected_check == 1)) ||
+      exit 1
+    ;;
+  *)
+    ((selected_install == 1 && selected_check == 1)) ||
+      exit 1
+    ;;
+  esac
 fi
 printf '%q ' packaged-launcher "$@" >> "$SMOLVM_LOG"
 printf '\n' >> "$SMOLVM_LOG"
@@ -477,6 +495,12 @@ run_case() {
         machine_exec_check="machine exec --name $vm_name --user omp -- /bin/sh /opt/ompact-env/$environment_name.sh check "
         packaged_check="packaged-launcher run --user omp -v $environment_volume -- /bin/sh /opt/ompact-env/$environment_name.sh check "
         ;;
+      go)
+        machine_exec_install="machine exec --name $vm_name -- /bin/sh /opt/ompact-env/$environment_name.sh install-sdk "
+        machine_exec_tools_install="machine exec --name $vm_name --user omp -- /bin/sh /opt/ompact-env/$environment_name.sh install-tools "
+        machine_exec_check="machine exec --name $vm_name --user omp -- /bin/sh /opt/ompact-env/$environment_name.sh check "
+        packaged_check="packaged-launcher run --user omp -v $environment_volume -- /bin/sh /opt/ompact-env/$environment_name.sh check "
+        ;;
       *)
         machine_exec_install="machine exec --name $vm_name -- /bin/sh /opt/ompact-env/$environment_name.sh install "
         machine_exec_check="machine exec --name $vm_name -- /bin/sh /opt/ompact-env/$environment_name.sh check "
@@ -485,6 +509,9 @@ run_case() {
       esac
       if [[ " ${expected_environments[*]} " == *" $environment_name "* ]]; then
         assert_log_line_equals "$machine_exec_install"
+        if [[ "$environment_name" == go ]]; then
+          assert_log_line_equals "$machine_exec_tools_install"
+        fi
         assert_log_line_equals "$machine_exec_check"
         assert_log_line_equals "$packaged_check"
         case "$environment_name" in
@@ -510,6 +537,9 @@ run_case() {
             [[ "$create_invocation" == *"--env $expected_env"* ]] ||
               fail "$case_name machine create is missing: --env $expected_env"
           done
+          for go_path_env in GOROOT GOPATH GOBIN GOMODCACHE GOCACHE; do
+            assert_log_not_contains "--env $go_path_env="
+          done
           ;;
         python)
           for expected_env in \
@@ -522,6 +552,9 @@ run_case() {
         esac
       else
         assert_log_not_contains "$machine_exec_install"
+        if [[ "$environment_name" == go ]]; then
+          assert_log_not_contains "$machine_exec_tools_install"
+        fi
         assert_log_not_contains "$machine_exec_check"
         assert_log_not_contains "$packaged_check"
       fi

@@ -116,17 +116,28 @@ smolvm machine exec --name "$VM_NAME" -- /usr/local/bin/omp --version
 
 if ((${#SELECTED_ENVIRONMENTS[@]})); then
   for environment_name in "${SELECTED_ENVIRONMENTS[@]}"; do
-    if [[ "$environment_name" == rust ]]; then
+    case "$environment_name" in
+    rust)
       smolvm machine exec --name "$VM_NAME" --user omp -- \
         /bin/sh "/opt/ompact-env/$environment_name.sh" install
       smolvm machine exec --name "$VM_NAME" --user omp -- \
         /bin/sh "/opt/ompact-env/$environment_name.sh" check
-    else
+      ;;
+    go)
+      smolvm machine exec --name "$VM_NAME" -- \
+        /bin/sh "/opt/ompact-env/$environment_name.sh" install-sdk
+      smolvm machine exec --name "$VM_NAME" --user omp -- \
+        /bin/sh "/opt/ompact-env/$environment_name.sh" install-tools
+      smolvm machine exec --name "$VM_NAME" --user omp -- \
+        /bin/sh "/opt/ompact-env/$environment_name.sh" check
+      ;;
+    *)
       smolvm machine exec --name "$VM_NAME" -- \
         /bin/sh "/opt/ompact-env/$environment_name.sh" install
       smolvm machine exec --name "$VM_NAME" -- \
         /bin/sh "/opt/ompact-env/$environment_name.sh" check
-    fi
+      ;;
+    esac
   done
 fi
 
@@ -154,7 +165,7 @@ test -x "$OUTPUT"
 [[ ! -e /tmp/ompact.smolmachine && ! -L /tmp/ompact.smolmachine ]]
 if ((${#SELECTED_ENVIRONMENTS[@]})); then
   for environment_name in "${SELECTED_ENVIRONMENTS[@]}"; do
-    if [[ "$environment_name" == rust ]]; then
+    if [[ "$environment_name" == rust || "$environment_name" == go ]]; then
       "$OUTPUT" run --user omp -v "$ENV_VOLUME_CREATE" -- \
         /bin/sh "/opt/ompact-env/$environment_name.sh" check
     else
