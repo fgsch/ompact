@@ -108,13 +108,13 @@ cleanup_install_artifacts() {
   [ -n "$gobin" ] || gobin="$gopath/bin"
   gomodcache=$("$go_root/bin/go" env GOMODCACHE)
   gocache=$("$go_root/bin/go" env GOCACHE)
-  [ "$gopath" = "$HOME/go" ] &&
-    [ "$gobin" = "$gopath/bin" ] &&
-    [ "$gomodcache" = "$gopath/pkg/mod" ] &&
-    [ "$gocache" = "$HOME/.cache/go-build" ] || {
+  if [ "$gopath" != "$HOME/go" ] ||
+    [ "$gobin" != "$gopath/bin" ] ||
+    [ "$gomodcache" != "$gopath/pkg/mod" ] ||
+    [ "$gocache" != "$HOME/.cache/go-build" ]; then
     printf 'Go install paths differ from the expected HOME defaults\n' >&2
     exit 1
-  }
+  fi
 
   for path in "$gopath"/* "$gopath"/.[!.]* "$gopath"/..?*; do
     [ -e "$path" ] || [ -L "$path" ] || continue
@@ -138,8 +138,6 @@ assert_empty_directory() {
   }
 }
 
-
-
 assert_go_install_layout() {
   gopath=$("$go_root/bin/go" env GOPATH)
   gobin=$("$go_root/bin/go" env GOBIN)
@@ -147,21 +145,21 @@ assert_go_install_layout() {
   gomodcache=$("$go_root/bin/go" env GOMODCACHE)
   gocache=$("$go_root/bin/go" env GOCACHE)
 
-  [ "$gopath" = "$HOME/go" ] &&
-    [ "$gobin" = "$gopath/bin" ] &&
-    [ "$gomodcache" = "$gopath/pkg/mod" ] &&
-    [ "$gocache" = "$HOME/.cache/go-build" ] || {
+  if [ "$gopath" != "$HOME/go" ] ||
+    [ "$gobin" != "$gopath/bin" ] ||
+    [ "$gomodcache" != "$gopath/pkg/mod" ] ||
+    [ "$gocache" != "$HOME/.cache/go-build" ]; then
     printf 'Go paths differ from the expected HOME defaults\n' >&2
     exit 1
-  }
+  fi
 
   for writable_path in \
     "$gopath" "$gobin" "$gopath/pkg" "$gomodcache" \
     "${gocache%/*}" "$gocache"; do
-    [ -d "$writable_path" ] && [ -w "$writable_path" ] || {
+    if [ ! -d "$writable_path" ] || [ ! -w "$writable_path" ]; then
       printf 'Go directory is missing or not writable: %s\n' "$writable_path" >&2
       exit 1
-    }
+    fi
   done
 
   unexpected_child=$(find "$gopath" -mindepth 1 -maxdepth 1 \
@@ -214,10 +212,10 @@ check_environment() {
   tmpdir=$(mktemp -d)
 
   for readonly_path in "$go_root" "$go_root/bin/go" "$go_root/bin/gofmt"; do
-    [ -e "$readonly_path" ] && [ ! -w "$readonly_path" ] || {
+    if [ ! -e "$readonly_path" ] || [ -w "$readonly_path" ]; then
       printf 'Go SDK path is missing or writable: %s\n' "$readonly_path" >&2
       exit 1
-    }
+    fi
   done
   XDG_CONFIG_HOME="$HOME/.config"
   export XDG_CONFIG_HOME

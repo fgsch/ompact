@@ -66,11 +66,11 @@ install_sdk() {
 
 clear_cargo_registry() {
   registry_dir="$CARGO_HOME/registry"
-  [ -d "$registry_dir" ] && [ ! -L "$registry_dir" ] || {
+  if [ ! -d "$registry_dir" ] || [ -L "$registry_dir" ]; then
     printf 'Cargo registry path is missing or not a directory: %s\n' \
       "$registry_dir" >&2
     exit 1
-  }
+  fi
   find "$registry_dir" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
 }
 assert_empty_cargo_registry() {
@@ -82,8 +82,6 @@ assert_empty_cargo_registry() {
   }
 }
 
-
-
 install_tools() {
   : "${CARGO_HOME:?CARGO_HOME must be set}"
   : "${RUSTUP_HOME:?RUSTUP_HOME must be set}"
@@ -91,11 +89,11 @@ install_tools() {
   : "${CARGO_DENY_VERSION:?CARGO_DENY_VERSION must be set}"
   : "${CARGO_NEXTEST_VERSION:?CARGO_NEXTEST_VERSION must be set}"
   : "${CARGO_LLVM_COV_VERSION:?CARGO_LLVM_COV_VERSION must be set}"
-  [ -x "$CARGO_HOME/bin/rustup" ] && [ -d "$RUSTUP_HOME/toolchains" ] || {
+  if [ ! -x "$CARGO_HOME/bin/rustup" ] ||
+    [ ! -d "$RUSTUP_HOME/toolchains" ]; then
     printf 'Rust SDK is not installed\n' >&2
     exit 1
-  }
-
+  fi
   install -d -m 0755 "$CARGO_HOME/registry" "$CARGO_HOME/git" "$CARGO_HOME/bin"
   cargo install --locked --version "$CARGO_AUDIT_VERSION" cargo-audit
   cargo install --locked --version "$CARGO_DENY_VERSION" cargo-deny
@@ -109,10 +107,10 @@ check_environment() {
 
   toolchain_sysroot=$(rustc --print sysroot)
   for toolchain_path in "$RUSTUP_HOME" "$toolchain_sysroot"; do
-    [ -d "$toolchain_path" ] && [ ! -w "$toolchain_path" ] || {
+    if [ ! -d "$toolchain_path" ] || [ -w "$toolchain_path" ]; then
       printf 'Rust toolchain path is missing or writable: %s\n' "$toolchain_path" >&2
       exit 1
-    }
+    fi
   done
   case "$toolchain_sysroot" in
   "$RUSTUP_HOME"/toolchains/*) ;;
@@ -121,17 +119,18 @@ check_environment() {
     exit 1
     ;;
   esac
-  [ -x "$toolchain_sysroot/bin/rustc" ] && [ ! -w "$toolchain_sysroot/bin/rustc" ] || {
+  if [ ! -x "$toolchain_sysroot/bin/rustc" ] ||
+    [ -w "$toolchain_sysroot/bin/rustc" ]; then
     printf 'Rust compiler is missing or writable: %s\n' "$toolchain_sysroot/bin/rustc" >&2
     exit 1
-  }
+  fi
 
   for writable_path in "$CARGO_HOME" "$CARGO_HOME/bin" \
     "$CARGO_HOME/registry" "$CARGO_HOME/git"; do
-    [ -d "$writable_path" ] && [ -w "$writable_path" ] || {
+    if [ ! -d "$writable_path" ] || [ ! -w "$writable_path" ]; then
       printf 'Cargo directory is missing or not writable: %s\n' "$writable_path" >&2
       exit 1
-    }
+    fi
     probe="$writable_path/.ompact-write-test"
     touch "$probe"
     rm -f "$probe"
