@@ -62,7 +62,8 @@ The first `build.sh` argument selects comma-separated environment names.
 
 Add an executable `env/<name>.sh` implementing those commands. Selected
 scripts are mounted read-only into the builder, where they install their
-tools; omitted environments do not provide their compiler, tools, or caches.
+tools; omitted environments do not provide their compiler, language tools, or
+caches.
 
 ## Build overrides
 

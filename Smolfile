@@ -23,7 +23,8 @@ rm -f /etc/apt/sources.list /etc/apt/sources.list.d/debian.sources
 apt-get -o Acquire::Check-Valid-Until=false update
 apt-get install -y --no-install-recommends \
   ca-certificates curl bash git openssh-client \
-  build-essential pkg-config libssl-dev jq tar python3 python-is-python3
+  build-essential pkg-config libssl-dev jq tar python3 python-is-python3 \
+  gdb lldb
 install -d -m 0755 /etc/ssh
 github_meta="$(mktemp)"
 github_known_hosts="$(mktemp /etc/ssh/ssh_known_hosts.XXXXXX)"

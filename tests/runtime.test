@@ -161,7 +161,7 @@ set -e
 }
 
 # Verify selected tools are present and executable by the omp user
-REQUIRED_TOOLS=(python python3 fd rg gh sd ast-grep jj)
+REQUIRED_TOOLS=(python python3 fd rg gh sd ast-grep jj gdb lldb)
 for tool in "${REQUIRED_TOOLS[@]}"; do
   if ! "$PROJECT_ROOT/ompact" run -- /bin/sh -c \
     "command -v $tool >/dev/null 2>&1"; then
@@ -197,6 +197,14 @@ if ((${#TOOLS_PRESENT[@]})); then
     python3)
       version_command='python3 --version'
       expected='Python'
+      ;;
+    gdb)
+      version_command='gdb --version'
+      expected='GNU gdb'
+      ;;
+    lldb)
+      version_command='lldb --version'
+      expected='lldb version'
       ;;
     jj)
       version_command='jj --version'
