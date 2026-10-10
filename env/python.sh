@@ -42,27 +42,34 @@ trap 'exit 1' 1 2 3 15
 case "${1:-}" in
 defaults)
   [ "$#" -eq 1 ] || {
-    printf 'usage: %s defaults|install|check\n' "$0" >&2
+    printf 'usage: %s defaults|install-system|install-user|check\n' "$0" >&2
     exit 2
   }
   print_defaults
   ;;
-install)
+install-system)
   [ "$#" -eq 1 ] || {
-    printf 'usage: %s defaults|install|check\n' "$0" >&2
+    printf 'usage: %s defaults|install-system|install-user|check\n' "$0" >&2
     exit 2
   }
   install_environment
   ;;
+install-user)
+  [ "$#" -eq 1 ] || {
+    printf 'usage: %s defaults|install-system|install-user|check\n' "$0" >&2
+    exit 2
+  }
+  :
+  ;;
 check)
   [ "$#" -eq 1 ] || {
-    printf 'usage: %s defaults|install|check\n' "$0" >&2
+    printf 'usage: %s defaults|install-system|install-user|check\n' "$0" >&2
     exit 2
   }
   check_environment
   ;;
 *)
-  printf 'usage: %s defaults|install|check\n' "$0" >&2
+  printf 'usage: %s defaults|install-system|install-user|check\n' "$0" >&2
   exit 2
   ;;
 esac

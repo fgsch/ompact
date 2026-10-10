@@ -52,10 +52,15 @@ export PATH="$HOME/.local/bin:$PATH"
 command -v smolvm >/dev/null 2>&1 || die "smolvm is unavailable"
 [[ -f "$PROJECT_ROOT/Smolfile" ]] || die "Smolfile is unavailable: $PROJECT_ROOT/Smolfile"
 MACHINE_CREATE_STARTED=0
+PACK_SMOLFILE="$PROJECT_ROOT/Smolfile"
+PACK_SMOLFILE_TEMP=
 cleanup_machine() {
   if ((MACHINE_CREATE_STARTED)); then
     smolvm machine stop --name "$VM_NAME" >/dev/null 2>&1 || true
     smolvm machine delete --name "$VM_NAME" --force >/dev/null 2>&1 || true
+  fi
+  if [[ -n "$PACK_SMOLFILE_TEMP" ]]; then
+    rm -f -- "$PACK_SMOLFILE_TEMP"
   fi
 }
 trap cleanup_machine EXIT
@@ -79,6 +84,8 @@ ENVIRONMENTS="${1:-}"
 SELECTED_ENVIRONMENTS=()
 ENVIRONMENT_ARGS=()
 ENVIRONMENT_KEYS=()
+ENVIRONMENT_PATHS=()
+RUNTIME_BASE_PATH="/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin"
 if [[ -n "$ENVIRONMENTS" ]]; then
   case "$ENVIRONMENTS" in
   ,* | *, | *,,*) die "environment selection contains an empty name" ;;
@@ -102,6 +109,16 @@ if [[ -n "$ENVIRONMENTS" ]]; then
     while IFS='=' read -r environment_key environment_value; do
       [[ "$environment_key" =~ ^[A-Z][A-Z0-9_]*$ ]] ||
         die "invalid default variable from $environment_script: $environment_key"
+      if [[ "$environment_key" == ENV_PATH ]]; then
+        [[ "$environment_value" == /* && "$environment_value" != *:* &&
+          "$environment_value" != *'"'* && "$environment_value" != *\\* &&
+          "$environment_value" != *$'\r'* ]] ||
+          die "invalid environment PATH entry from $environment_script: $environment_value"
+        ENVIRONMENT_PATHS+=("$environment_value")
+        continue
+      fi
+      [[ "$environment_key" != PATH ]] ||
+        die "environment scripts must declare PATH entries using ENV_PATH"
       if ((${#ENVIRONMENT_KEYS[@]})); then
         for existing_key in "${ENVIRONMENT_KEYS[@]}"; do
           [[ "$existing_key" != "$environment_key" ]] ||
@@ -113,6 +130,25 @@ if [[ -n "$ENVIRONMENTS" ]]; then
     done <<<"$defaults_output"
     SELECTED_ENVIRONMENTS+=("$environment_name")
   done
+  if ((${#ENVIRONMENT_PATHS[@]})); then
+    environment_path=$(IFS=:; printf '%s' "${ENVIRONMENT_PATHS[*]}")
+    runtime_path="$environment_path:$RUNTIME_BASE_PATH"
+    ENVIRONMENT_ARGS+=(--env "PATH=$runtime_path")
+
+    PACK_SMOLFILE_TEMP=$(mktemp "${TMPDIR:-/tmp}/ompact-smolfile.XXXXXX")
+    path_line_count=0
+    while IFS= read -r smolfile_line || [[ -n "$smolfile_line" ]]; do
+      if [[ "$smolfile_line" == '  "PATH='* ]]; then
+        ((path_line_count += 1))
+        printf '  "PATH=%s",\n' "$runtime_path" >>"$PACK_SMOLFILE_TEMP"
+      else
+        printf '%s\n' "$smolfile_line" >>"$PACK_SMOLFILE_TEMP"
+      fi
+    done <"$PROJECT_ROOT/Smolfile"
+    [[ "$path_line_count" -eq 1 ]] ||
+      die "Smolfile must define exactly one PATH entry"
+    PACK_SMOLFILE="$PACK_SMOLFILE_TEMP"
+  fi
   printf 'environments selected: %s\n' "${SELECTED_ENVIRONMENTS[*]}"
 else
   printf 'no environments selected\n'
@@ -144,38 +180,15 @@ smolvm machine exec --name "$VM_NAME" -- /usr/local/bin/omp --version
 
 if ((${#SELECTED_ENVIRONMENTS[@]})); then
   for environment_name in "${SELECTED_ENVIRONMENTS[@]}"; do
-    case "$environment_name" in
-    rust)
-      run_step "Rust SDK installation" \
-        smolvm machine exec --name "$VM_NAME" -- \
-        /bin/sh "/opt/ompact-env/$environment_name.sh" install-sdk
-      run_step "Rust tool installation" \
-        smolvm machine exec --name "$VM_NAME" --user omp -- \
-        /bin/sh "/opt/ompact-env/$environment_name.sh" install-tools
-      run_step "Rust environment check" \
-        smolvm machine exec --name "$VM_NAME" --user omp -- \
-        /bin/sh "/opt/ompact-env/$environment_name.sh" check
-      ;;
-    go)
-      run_step "Go SDK installation" \
-        smolvm machine exec --name "$VM_NAME" -- \
-        /bin/sh "/opt/ompact-env/$environment_name.sh" install-sdk
-      run_step "Go tool installation" \
-        smolvm machine exec --name "$VM_NAME" --user omp -- \
-        /bin/sh "/opt/ompact-env/$environment_name.sh" install-tools
-      run_step "Go environment check" \
-        smolvm machine exec --name "$VM_NAME" --user omp -- \
-        /bin/sh "/opt/ompact-env/$environment_name.sh" check
-      ;;
-    *)
-      run_step "$environment_name installation" \
-        smolvm machine exec --name "$VM_NAME" -- \
-        /bin/sh "/opt/ompact-env/$environment_name.sh" install
-      run_step "$environment_name environment check" \
-        smolvm machine exec --name "$VM_NAME" -- \
-        /bin/sh "/opt/ompact-env/$environment_name.sh" check
-      ;;
-    esac
+    run_step "$environment_name system installation" \
+      smolvm machine exec --name "$VM_NAME" -- \
+      /bin/sh "/opt/ompact-env/$environment_name.sh" install-system
+    run_step "$environment_name user installation" \
+      smolvm machine exec --name "$VM_NAME" --user omp -- \
+      /bin/sh "/opt/ompact-env/$environment_name.sh" install-user
+    run_step "$environment_name environment check" \
+      smolvm machine exec --name "$VM_NAME" --user omp -- \
+      /bin/sh "/opt/ompact-env/$environment_name.sh" check
   done
 fi
 
@@ -188,7 +201,7 @@ PACK_CREATE_ARGS=(
   pack
   create
   --from-vm "$VM_NAME"
-  --smolfile "$PROJECT_ROOT/Smolfile"
+  --smolfile "$PACK_SMOLFILE"
 )
 if ((${#OPTIONAL_RESOURCE_ARGS[@]})); then
   PACK_CREATE_ARGS+=("${OPTIONAL_RESOURCE_ARGS[@]}")
@@ -203,16 +216,11 @@ test -x "$OUTPUT"
 [[ ! -e /tmp/ompact.smolmachine && ! -L /tmp/ompact.smolmachine ]]
 if ((${#SELECTED_ENVIRONMENTS[@]})); then
   for environment_name in "${SELECTED_ENVIRONMENTS[@]}"; do
-    if [[ "$environment_name" == rust || "$environment_name" == go ]]; then
-      run_step "$environment_name packaged environment check" \
-        "$OUTPUT" run --user omp -v "$ENV_VOLUME_CREATE" -- \
-        /bin/sh "/opt/ompact-env/$environment_name.sh" check
-    else
-      run_step "$environment_name packaged environment check" \
-        "$OUTPUT" run -v "$ENV_VOLUME_CREATE" -- \
-        /bin/sh "/opt/ompact-env/$environment_name.sh" check
-    fi
+    run_step "$environment_name packaged environment check" \
+      "$OUTPUT" run --user omp -v "$ENV_VOLUME_CREATE" -- \
+      /bin/sh "/opt/ompact-env/$environment_name.sh" check
   done
 fi
 "$OUTPUT" run -- /usr/local/bin/omp --version
 printf 'created %s\n' "$OUTPUT"
+

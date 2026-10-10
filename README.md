@@ -17,7 +17,6 @@
 
 ```sh
 make build
-make build ENVIRONMENTS=rust,go
 ```
 
 The build creates a disposable builder VM, runs the selected environment
@@ -40,30 +39,39 @@ scripts and `Smolfile` bootstrap, verifies the guest inputs, and writes
 
 Mutable versions, checksums, and installer details live in `Smolfile` and
 the selected `env/*.sh` scripts. The base bootstrap includes `omp`, `jj`,
-`fd`, `rg`, `sd`, `ast-grep`, and `gh`; environment scripts own
-language-specific tools and caches. The daily `update-omp` workflow opens
-or updates a pull request for newer `omp` releases, runs `Check`, and
-enables auto-merge after it succeeds.
+`fd`, `rg`, `sd`, `ast-grep`, and `gh`; environment scripts own additional
+tools and caches.
 
 Update an input in its owning file, then run `make check`.
 
 ## Environments
 
-The first `build.sh` argument selects comma-separated environment names.
-`make build ENVIRONMENTS=rust,go` passes the same list to the script.
+### Selecting environments
+
+The optional first `build.sh` argument selects comma-separated names of
+executable scripts under `env/`. Set Make's `ENVIRONMENTS` variable to pass
+the same list. Omit the list for a base-only build.
+
+```sh
+make build ENVIRONMENTS=rust,go
+```
+
+### Adding an environment
 
 | Script command | Responsibility |
 | --- | --- |
 | `defaults` | Print build-time `KEY=VALUE` defaults. |
-| `install-sdk` | Install the compiler/toolchain as root. |
-| `install-tools` | Install language tools as `omp`. |
-| `install` | Install one-stage environments. |
-| `check` | Verify the tools and run a minimal probe. |
+| `install-system` | Install system-owned components as root. |
+| `install-user` | Install user-owned tools as `omp`. |
+| `check` | Verify the environment as `omp` and run a minimal probe. |
 
-Add an executable `env/<name>.sh` implementing those commands. Selected
-scripts are mounted read-only into the builder, where they install their
-tools; omitted environments do not provide their compiler, language tools, or
-caches.
+Create an executable `env/<name>.sh` implementing the commands above;
+unused install phases should be successful no-ops.
+
+`defaults` may include repeated `ENV_PATH=/absolute/path` entries. These
+directories are prepended to the builder and packaged runtime `PATH` in
+selection order.
+Other entries become builder environment variables.
 
 ## Build overrides
 
@@ -74,8 +82,8 @@ caches.
 | `MEMORY` | Overrides builder and packaged VM memory defaults. |
 | `ENVIRONMENTS` | Makefile-only comma-separated environment list. |
 
-Environment scripts may define additional variables. Their defaults and
-override syntax remain script-specific.
+Environment-specific overrides and constraints are defined by their owning
+`env/<name>.sh` scripts.
 
 ```sh
 CPUS=8 MEMORY=16384 OUTPUT=/path/to/ompact ./build.sh rust,go
@@ -109,17 +117,10 @@ The image installs GitHub's currently published SSH host keys from
 host verification.
 When Git or SSH needs host authentication, add `--ssh-agent` to the run
 command. The host must expose its agent through `SSH_AUTH_SOCK`; smolvm
-forwards signing requests without copying private keys into the VM:
-
-```sh
-./ompact run --ssh-agent -it --net \
-  -v "$PWD:/workspace" \
-  -v "$HOME/.omp:/home/omp/.omp" \
-  -- /usr/local/bin/omp
-```
+forwards signing requests without copying private keys into the VM.
 
 Model credentials are launch-time inputs supplied with `-e` or smolvm's
-secret mechanism. They are not embedded in the artifact.
+secret mechanism.
 
 The active agent directory can be checked with the same state mount:
 

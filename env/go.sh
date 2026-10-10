@@ -8,9 +8,10 @@ GOVULNCHECK_VERSION=${GOVULNCHECK_VERSION:-1.8.0}
 STATICCHECK_VERSION=${STATICCHECK_VERSION:-0.8.1}
 GOLANGCI_LINT_VERSION=${GOLANGCI_LINT_VERSION:-2.14.0}
 go_root=${GO_ROOT:-/usr/local/go}
+GOBIN=${GOBIN:-/home/omp/go/bin}
 
 export GO_VERSION GOPLS_VERSION GOVULNCHECK_VERSION STATICCHECK_VERSION
-export GOLANGCI_LINT_VERSION
+export GOLANGCI_LINT_VERSION GOBIN
 
 tmpdir=
 
@@ -20,6 +21,39 @@ print_defaults() {
   printf 'GOVULNCHECK_VERSION=%s\n' "$GOVULNCHECK_VERSION"
   printf 'STATICCHECK_VERSION=%s\n' "$STATICCHECK_VERSION"
   printf 'GOLANGCI_LINT_VERSION=%s\n' "$GOLANGCI_LINT_VERSION"
+  printf 'GOBIN=%s\n' "$GOBIN"
+  printf 'ENV_PATH=%s\n' "$GOBIN"
+}
+
+ensure_go_path_links() {
+  for go_command in go gofmt; do
+    go_link="/usr/local/bin/$go_command"
+    go_target="$go_root/bin/$go_command"
+    if [ -L "$go_link" ]; then
+      if [ "$(readlink -- "$go_link")" != "$go_target" ]; then
+        printf 'Go command path conflicts with %s: %s\n' \
+          "$go_target" "$go_link" >&2
+        exit 1
+      fi
+    elif [ -e "$go_link" ]; then
+      printf 'Go command path already exists: %s\n' "$go_link" >&2
+      exit 1
+    else
+      ln -s "$go_target" "$go_link"
+    fi
+  done
+}
+
+assert_go_path_links() {
+  for go_command in go gofmt; do
+    go_link="/usr/local/bin/$go_command"
+    go_target="$go_root/bin/$go_command"
+    if [ ! -L "$go_link" ] ||
+      [ "$(readlink -- "$go_link")" != "$go_target" ]; then
+      printf 'Go command path is missing or incorrect: %s\n' "$go_link" >&2
+      exit 1
+    fi
+  done
 }
 
 install_sdk() {
@@ -94,6 +128,7 @@ EOF
     rm -f "$archive_path"
   fi
   chmod -R a-w "$go_root"
+  ensure_go_path_links
 }
 
 remove_install_path() {
@@ -101,35 +136,59 @@ remove_install_path() {
   if [ -L "$path_to_remove" ]; then
     rm -f -- "$path_to_remove"
   elif [ -e "$path_to_remove" ]; then
-    chmod -R u+w -- "$path_to_remove"
+    chmod -R u+w "$path_to_remove"
     rm -rf -- "$path_to_remove"
   fi
 }
 
-cleanup_install_artifacts() {
+prepare_install_paths() {
   gopath=$("$go_root/bin/go" env GOPATH)
   gobin=$("$go_root/bin/go" env GOBIN)
-  [ -n "$gobin" ] || gobin="$gopath/bin"
   gomodcache=$("$go_root/bin/go" env GOMODCACHE)
   gocache=$("$go_root/bin/go" env GOCACHE)
   if [ "$gopath" != "$HOME/go" ] ||
-    [ "$gobin" != "$gopath/bin" ] ||
+    [ "$gobin" != "$GOBIN" ] ||
     [ "$gomodcache" != "$gopath/pkg/mod" ] ||
     [ "$gocache" != "$HOME/.cache/go-build" ]; then
     printf 'Go install paths differ from the expected HOME defaults\n' >&2
     exit 1
   fi
+  case "$GOBIN" in
+  /*) ;;
+  *)
+    printf 'Go GOBIN must be an absolute directory: %s\n' "$GOBIN" >&2
+    exit 1
+    ;;
+  esac
+  install -d -m 0755 "$GOBIN" "$gopath" "$gomodcache" "$gocache"
+  gobin_directory=$(cd "$GOBIN" && pwd -P)
+  gopath_directory=$(cd "$gopath" && pwd -P)
+  gocache_directory=$(cd "$gocache" && pwd -P)
+  case "$gobin_directory" in
+  "$gocache_directory" | "$gocache_directory"/*)
+    printf 'Go GOBIN must not overlap the build cache: %s\n' "$GOBIN" >&2
+    exit 1
+    ;;
+  esac
+  if [ "$gobin_directory" != "$gopath_directory/bin" ]; then
+    case "$gobin_directory" in
+    "$gopath_directory" | "$gopath_directory"/*)
+      printf 'Go GOBIN must be outside GOPATH except at %s/bin: %s\n' \
+        "$gopath" "$GOBIN" >&2
+      exit 1
+      ;;
+    esac
+  fi
+}
 
+cleanup_install_artifacts() {
   for path in "$gopath"/* "$gopath"/.[!.]* "$gopath"/..?*; do
     [ -e "$path" ] || [ -L "$path" ] || continue
-    [ "$path" = "$gobin" ] && continue
+    [ ! "$path" -ef "$GOBIN" ] || continue
     remove_install_path "$path"
   done
-  for path in "$HOME/.cache"/* "$HOME/.cache"/.[!.]* "$HOME/.cache"/..?*; do
-    [ -e "$path" ] || [ -L "$path" ] || continue
-    remove_install_path "$path"
-  done
-  install -d -m 0755 "$gomodcache" "$gocache"
+  remove_install_path "$gocache"
+  install -d -m 0755 "$GOBIN" "$gomodcache" "$gocache"
 }
 
 assert_empty_directory() {
@@ -145,12 +204,11 @@ assert_empty_directory() {
 assert_go_install_layout() {
   gopath=$("$go_root/bin/go" env GOPATH)
   gobin=$("$go_root/bin/go" env GOBIN)
-  [ -n "$gobin" ] || gobin="$gopath/bin"
   gomodcache=$("$go_root/bin/go" env GOMODCACHE)
   gocache=$("$go_root/bin/go" env GOCACHE)
 
   if [ "$gopath" != "$HOME/go" ] ||
-    [ "$gobin" != "$gopath/bin" ] ||
+    [ "$gobin" != "$GOBIN" ] ||
     [ "$gomodcache" != "$gopath/pkg/mod" ] ||
     [ "$gocache" != "$HOME/.cache/go-build" ]; then
     printf 'Go paths differ from the expected HOME defaults\n' >&2
@@ -180,13 +238,6 @@ assert_go_install_layout() {
       "$gopath/pkg" "$unexpected_child" >&2
     exit 1
   }
-  unexpected_child=$(find "${gocache%/*}" -mindepth 1 -maxdepth 1 \
-    ! -name go-build -print -quit)
-  [ -z "$unexpected_child" ] || {
-    printf 'Go setup left unexpected content in %s: %s\n' \
-      "${gocache%/*}" "$unexpected_child" >&2
-    exit 1
-  }
   assert_empty_directory "$gomodcache"
   assert_empty_directory "$gocache"
 }
@@ -201,6 +252,7 @@ install_tools() {
     exit 1
   }
 
+  prepare_install_paths
   XDG_CONFIG_HOME="$HOME/.config"
   export XDG_CONFIG_HOME
   "$go_root/bin/go" telemetry off
@@ -213,6 +265,8 @@ install_tools() {
 }
 
 check_environment() {
+  PATH="$go_root/bin:$GOBIN:$PATH"
+  export PATH
   tmpdir=$(mktemp -d)
 
   for readonly_path in "$go_root" "$go_root/bin/go" "$go_root/bin/gofmt"; do
@@ -221,6 +275,7 @@ check_environment() {
       exit 1
     fi
   done
+  assert_go_path_links
   XDG_CONFIG_HOME="$HOME/.config"
   export XDG_CONFIG_HOME
   telemetry_mode=$("$go_root/bin/go" env GOTELEMETRY)
@@ -230,6 +285,12 @@ check_environment() {
   }
 
   assert_go_install_layout
+  for go_tool in gopls govulncheck staticcheck golangci-lint; do
+    if [ ! -x "$GOBIN/$go_tool" ]; then
+      printf 'Go tool is missing or not executable: %s\n' "$GOBIN/$go_tool" >&2
+      exit 1
+    fi
+  done
 
   XDG_CACHE_HOME="$tmpdir/cache"
   GOMODCACHE="$tmpdir/go-mod-cache"
@@ -262,34 +323,34 @@ trap 'exit 1' 1 2 3 15
 case "${1:-}" in
 defaults)
   [ "$#" -eq 1 ] || {
-    printf 'usage: %s defaults|install-sdk|install-tools|check\n' "$0" >&2
+    printf 'usage: %s defaults|install-system|install-user|check\n' "$0" >&2
     exit 2
   }
   print_defaults
   ;;
-install-sdk)
+install-system)
   [ "$#" -eq 1 ] || {
-    printf 'usage: %s defaults|install-sdk|install-tools|check\n' "$0" >&2
+    printf 'usage: %s defaults|install-system|install-user|check\n' "$0" >&2
     exit 2
   }
   install_sdk
   ;;
-install-tools)
+install-user)
   [ "$#" -eq 1 ] || {
-    printf 'usage: %s defaults|install-sdk|install-tools|check\n' "$0" >&2
+    printf 'usage: %s defaults|install-system|install-user|check\n' "$0" >&2
     exit 2
   }
   install_tools
   ;;
 check)
   [ "$#" -eq 1 ] || {
-    printf 'usage: %s defaults|install-sdk|install-tools|check\n' "$0" >&2
+    printf 'usage: %s defaults|install-system|install-user|check\n' "$0" >&2
     exit 2
   }
   check_environment
   ;;
 *)
-  printf 'usage: %s defaults|install-sdk|install-tools|check\n' "$0" >&2
+  printf 'usage: %s defaults|install-system|install-user|check\n' "$0" >&2
   exit 2
   ;;
 esac

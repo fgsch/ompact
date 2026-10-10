@@ -169,10 +169,24 @@ for tool in "${REQUIRED_TOOLS[@]}"; do
     exit 1
   fi
 done
+# Guest-side PATH is intentionally expanded by the inner shell.
+# shellcheck disable=SC2016
+if ! "$PROJECT_ROOT/ompact" run -- /bin/sh -c \
+  'case ":$PATH:" in *:/usr/local/bin:*) ;; *) exit 1 ;; esac
+   case ":$PATH:" in *:/home/omp/.local/bin:*) exit 1 ;; *) exit 0 ;; esac'; then
+  printf 'system PATH or isolated tool directories are not configured\n' >&2
+  exit 1
+fi
 
 TOOLS_PRESENT=("${REQUIRED_TOOLS[@]}")
 for tool in cargo go; do
-  if "$PROJECT_ROOT/ompact" run -- /bin/sh -c "command -v $tool >/dev/null 2>&1"; then
+  # Guest-side variables are intentionally expanded by the inner shell.
+  # shellcheck disable=SC2016
+  case "$tool" in
+  cargo) tool_probe='test -n "${CARGO_HOME:-}" && test -x "$CARGO_HOME/bin/cargo"' ;;
+  go) tool_probe='test -n "${GOBIN:-}" && test -x /usr/local/go/bin/go' ;;
+  esac
+  if "$PROJECT_ROOT/ompact" run -- /bin/sh -c "$tool_probe"; then
     TOOLS_PRESENT+=("$tool")
   fi
 done
@@ -183,11 +197,12 @@ if ((${#TOOLS_PRESENT[@]})); then
     # Run through runuser to verify access as the omp user
     case "$tool" in
     cargo)
-      version_command='cargo --version'
+      # shellcheck disable=SC2016
+      version_command='"$CARGO_HOME/bin/cargo" --version'
       expected='cargo'
       ;;
     go)
-      version_command='go version'
+      version_command='/usr/local/go/bin/go version'
       expected='go version'
       ;;
     python)
@@ -249,6 +264,8 @@ if [[ " ${TOOLS_PRESENT[*]} " == *" cargo "* ]]; then
   "$PROJECT_ROOT/ompact" run -- \
     /usr/sbin/runuser --user omp --preserve-environment -- \
     /bin/sh -eu -c '
+      PATH="$CARGO_HOME/bin:$PATH"
+      export PATH
       toolchain_sysroot=$(rustc --print sysroot)
       case "$toolchain_sysroot" in
         "$RUSTUP_HOME"/toolchains/*) ;;
@@ -267,6 +284,10 @@ if [[ " ${TOOLS_PRESENT[*]} " == *" cargo "* ]]; then
         probe="$writable_path/.ompact-write-test"
         touch "$probe"
         rm -f "$probe"
+      done
+      test -x "$CARGO_HOME/bin/cargo"
+      for installed_tool in cargo-audit cargo-deny cargo-nextest cargo-llvm-cov; do
+        test -x "$CARGO_HOME/bin/$installed_tool"
       done
       test -z "$(find "$CARGO_HOME/registry" -mindepth 1 -print -quit)"
     '
@@ -291,10 +312,8 @@ if [[ " ${TOOLS_PRESENT[*]} " == *" go "* ]]; then
       gomodcache=$("$go_bin" env GOMODCACHE)
       gocache=$("$go_bin" env GOCACHE)
       test "$gopath" = /home/omp/go
-      test -z "$gobin" || test "$gobin" = "$gopath/bin"
       test "$gomodcache" = "$gopath/pkg/mod"
       test "$gocache" = /home/omp/.cache/go-build
-      gobin=${gobin:-$gopath/bin}
       for writable_path in \
         "$gopath" "$gobin" "$gopath/pkg" "$gomodcache" \
         "$(dirname "$gocache")" "$gocache"; do
@@ -309,9 +328,6 @@ if [[ " ${TOOLS_PRESENT[*]} " == *" go "* ]]; then
       test -z "$unexpected_path"
       unexpected_path=$(find "$gopath/pkg" -mindepth 1 -maxdepth 1 \
         ! -name mod -print -quit)
-      test -z "$unexpected_path"
-      unexpected_path=$(find "$(dirname "$gocache")" -mindepth 1 -maxdepth 1 \
-        ! -name go-build -print -quit)
       test -z "$unexpected_path"
       for empty_path in "$gomodcache" "$gocache"; do
         test -z "$(find "$empty_path" -mindepth 1 -print -quit)"

@@ -6,6 +6,7 @@ PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/ompact-build-test.XXXXXX")"
 FAKE_SMOLVM="$WORKDIR/smolvm"
 SMOLVM_LOG="$WORKDIR/smolvm.log"
+SMOLVM_SMOLFILE_LOG="$WORKDIR/pack.smolfile"
 STATUS_COUNT="$WORKDIR/status-count"
 BUILD_OUTPUT="$WORKDIR/build.out"
 
@@ -209,15 +210,26 @@ case "${1:-}:${2:-}" in
     ;;
   pack:create)
     output=''
+    smolfile=''
     while (($# > 0)); do
-      if [[ "$1" == --output ]]; then
+      case "$1" in
+      --output)
         (($# >= 2)) || { printf 'missing pack output\n' >&2; exit 1; }
         output="$2"
         shift 2
-      else
+        ;;
+      --smolfile)
+        (($# >= 2)) || { printf 'missing pack Smolfile\n' >&2; exit 1; }
+        smolfile="$2"
+        shift 2
+        ;;
+      *)
         shift
-      fi
+        ;;
+      esac
     done
+    [[ -n "$smolfile" ]] || { printf 'missing pack Smolfile\n' >&2; exit 1; }
+    cp "$smolfile" "$SMOLVM_SMOLFILE_LOG"
     [[ -n "$output" ]] || { printf 'missing pack output\n' >&2; exit 1; }
     cat > "$output" <<'FAKE_LAUNCHER'
 #!/usr/bin/env bash
@@ -231,15 +243,6 @@ if [[ "$#" -eq 4 &&
   "${3:-}" == /usr/local/bin/omp &&
   "${4:-}" == --version ]]; then
   :
-elif [[ "$#" -eq 7 &&
-  "${1:-}" == run &&
-  "${2:-}" == -v &&
-  "${3:-}" == */env:/opt/ompact-env:ro &&
-  "${4:-}" == -- &&
-  "${5:-}" == /bin/sh &&
-  "${7:-}" == check ]]; then
-  environment_script="${6}"
-  environment_check=1
 elif [[ "$#" -eq 9 &&
   "${1:-}" == run &&
   "${2:-}" == --user &&
@@ -255,38 +258,26 @@ else
   exit 1
 fi
 if ((environment_check)); then
-  selected_install=0
-  selected_sdk_install=0
-  selected_tools_install=0
+  selected_system_install=0
+  selected_user_install=0
   selected_check=0
   while IFS= read -r invocation; do
     if [[ "$invocation" == machine\ exec* &&
-      "$invocation" == *" ${environment_script} install " ]]; then
-      selected_install=1
+      "$invocation" == *" -- /bin/sh ${environment_script} install-system " ]]; then
+      selected_system_install=1
     fi
     if [[ "$invocation" == machine\ exec* &&
-      "$invocation" == *" ${environment_script} install-sdk " ]]; then
-      selected_sdk_install=1
+      "$invocation" == *" --user omp -- /bin/sh ${environment_script} install-user " ]]; then
+      selected_user_install=1
     fi
     if [[ "$invocation" == machine\ exec* &&
-      "$invocation" == *" ${environment_script} install-tools " ]]; then
-      selected_tools_install=1
-    fi
-    if [[ "$invocation" == machine\ exec* &&
-      "$invocation" == *" ${environment_script} check " ]]; then
+      "$invocation" == *" --user omp -- /bin/sh ${environment_script} check " ]]; then
       selected_check=1
     fi
   done < "$SMOLVM_LOG"
-  case "$environment_script" in
-  */go.sh | */rust.sh)
-    ((selected_sdk_install == 1 && selected_tools_install == 1 && selected_check == 1)) ||
-      exit 1
-    ;;
-  *)
-    ((selected_install == 1 && selected_check == 1)) ||
-      exit 1
-    ;;
-  esac
+  ((selected_system_install == 1 &&
+    selected_user_install == 1 &&
+    selected_check == 1)) || exit 1
 fi
 printf 'environment harness passed\n'
 printf '%q ' packaged-launcher "$@" >> "$SMOLVM_LOG"
@@ -317,11 +308,13 @@ export VM_NAME="$WORKDIR/unexpected-vm"
 export SMOLFILE="$WORKDIR/unexpected-smolfile"
 export SMOLVM_BIN="$WORKDIR/unexpected-smolvm"
 export SMOLVM_LOG
+export SMOLVM_SMOLFILE_LOG
 export SMOLVM_STATUS_COUNT="$STATUS_COUNT"
 export RUST_TOOLCHAIN='1.99.0'
 export RUSTUP_HOME='/usr/local/rustup'
 export CARGO_HOME='/home/omp/.cargo'
 export GO_VERSION='go1.27.2'
+export GOBIN='/home/omp/go/bin'
 export UV_VERSION='0.12.22'
 export UV_CACHE_DIR='/var/cache/uv'
 export CARGO_AUDIT_VERSION='0.22.2'
@@ -406,15 +399,22 @@ run_case() {
   local vm_name
   local create_invocation
   local pack_create_invocation
+  local expected_pack_path
   local environment_volume="$PROJECT_ROOT/env:/opt/ompact-env:ro"
   local environment_mount="$PROJECT_ROOT/env:/opt/ompact-env"
   local environment_name
-  local machine_exec_install
+  local machine_exec_system_install
+  local machine_exec_user_install
+  local machine_exec_check
+  local packaged_check
   local build_status
   local expected_count
+  local expected_path_entries=()
+  local expected_runtime_path
 
   rm -f -- "$STATUS_COUNT" "$output" "$output.smolmachine"
   : >"$SMOLVM_LOG"
+  : >"$SMOLVM_SMOLFILE_LOG"
   export OUTPUT="$output"
 
   set +e
@@ -463,7 +463,7 @@ run_case() {
     fail "$case_name machine create is missing build network override: --net"
   [[ "$pack_create_invocation" == *"--from-vm $vm_name"* ]] ||
     fail "$case_name pack create is missing --from-vm $vm_name"
-  [[ "$pack_create_invocation" == *"--smolfile $PROJECT_ROOT/Smolfile"* ]] ||
+  [[ "$pack_create_invocation" == *'--smolfile '* ]] ||
     fail "$case_name pack create is missing --smolfile"
   [[ "$pack_create_invocation" == *'--single-file'* ]] ||
     fail "$case_name pack create is missing --single-file"
@@ -493,27 +493,36 @@ run_case() {
       "$pack_create_invocation"
     [[ "$create_invocation" == *"--volume $environment_volume"* ]] ||
       fail "$case_name machine create is missing environment volume"
-    for environment_name in rust go python; do
+    expected_path_entries=()
+    for environment_name in "${expected_environments[@]}"; do
       case "$environment_name" in
-      rust | go)
-        machine_exec_install="machine exec --name $vm_name -- /bin/sh /opt/ompact-env/$environment_name.sh install-sdk "
-        machine_exec_tools_install="machine exec --name $vm_name --user omp -- /bin/sh /opt/ompact-env/$environment_name.sh install-tools "
-        machine_exec_check="machine exec --name $vm_name --user omp -- /bin/sh /opt/ompact-env/$environment_name.sh check "
-        packaged_check="packaged-launcher run --user omp -v $environment_volume -- /bin/sh /opt/ompact-env/$environment_name.sh check "
-        ;;
-      *)
-        machine_exec_install="machine exec --name $vm_name -- /bin/sh /opt/ompact-env/$environment_name.sh install "
-        machine_exec_check="machine exec --name $vm_name -- /bin/sh /opt/ompact-env/$environment_name.sh check "
-        packaged_check="packaged-launcher run -v $environment_volume -- /bin/sh /opt/ompact-env/$environment_name.sh check "
-        ;;
+      rust) expected_path_entries+=("$CARGO_HOME/bin") ;;
+      go) expected_path_entries+=("$GOBIN") ;;
       esac
+    done
+    if ((${#expected_path_entries[@]})); then
+      expected_runtime_path=$(IFS=:; printf '%s' "${expected_path_entries[*]}")
+      [[ "$create_invocation" == *"--env PATH=$expected_runtime_path:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin"* ]] ||
+        fail "$case_name machine create is missing selected environment PATH entries"
+      expected_pack_path="$expected_runtime_path:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin"
+      assert_file_contains "$SMOLVM_SMOLFILE_LOG" "PATH=$expected_pack_path"
+    else
+      [[ "$create_invocation" != *'--env PATH='* ]] ||
+        fail "$case_name unexpectedly overrides the base PATH"
+      assert_file_contains "$SMOLVM_SMOLFILE_LOG" \
+        'PATH=/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin'
+    fi
+    for environment_name in rust go python; do
+      machine_exec_system_install="machine exec --name $vm_name -- /bin/sh /opt/ompact-env/$environment_name.sh install-system "
+      machine_exec_user_install="machine exec --name $vm_name --user omp -- /bin/sh /opt/ompact-env/$environment_name.sh install-user "
+      machine_exec_check="machine exec --name $vm_name --user omp -- /bin/sh /opt/ompact-env/$environment_name.sh check "
+      packaged_check="packaged-launcher run --user omp -v $environment_volume -- /bin/sh /opt/ompact-env/$environment_name.sh check "
       if [[ " ${expected_environments[*]} " == *" $environment_name "* ]]; then
-        assert_log_line_equals "$machine_exec_install"
-        if [[ "$environment_name" == go || "$environment_name" == rust ]]; then
-          assert_log_line_equals "$machine_exec_tools_install"
-          assert_log_order "$machine_exec_install" "$machine_exec_tools_install"
-        fi
+        assert_log_line_equals "$machine_exec_system_install"
+        assert_log_line_equals "$machine_exec_user_install"
+        assert_log_order "$machine_exec_system_install" "$machine_exec_user_install"
         assert_log_line_equals "$machine_exec_check"
+        assert_log_order "$machine_exec_user_install" "$machine_exec_check"
         assert_log_line_equals "$packaged_check"
         case "$environment_name" in
         rust)
@@ -532,6 +541,7 @@ run_case() {
         go)
           for expected_env in \
             "GO_VERSION=$GO_VERSION" \
+            "GOBIN=$GOBIN" \
             "GOPLS_VERSION=$GOPLS_VERSION" \
             "GOVULNCHECK_VERSION=$GOVULNCHECK_VERSION" \
             "STATICCHECK_VERSION=$STATICCHECK_VERSION" \
@@ -539,7 +549,7 @@ run_case() {
             [[ "$create_invocation" == *"--env $expected_env"* ]] ||
               fail "$case_name machine create is missing: --env $expected_env"
           done
-          for go_path_env in GOROOT GOPATH GOBIN GOMODCACHE GOCACHE; do
+          for go_path_env in GOROOT GOPATH GOMODCACHE GOCACHE; do
             assert_log_not_contains "--env $go_path_env="
           done
           ;;
@@ -553,10 +563,8 @@ run_case() {
           ;;
         esac
       else
-        assert_log_not_contains "$machine_exec_install"
-        if [[ "$environment_name" == go || "$environment_name" == rust ]]; then
-          assert_log_not_contains "$machine_exec_tools_install"
-        fi
+        assert_log_not_contains "$machine_exec_system_install"
+        assert_log_not_contains "$machine_exec_user_install"
         assert_log_not_contains "$machine_exec_check"
         assert_log_not_contains "$packaged_check"
       fi
@@ -567,6 +575,8 @@ run_case() {
     assert_log_not_contains '/opt/ompact-env'
     assert_log_not_contains 'machine update'
     assert_log_not_contains 'packaged-launcher run -v'
+    assert_file_contains "$SMOLVM_SMOLFILE_LOG" \
+      'PATH=/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin'
     if [[ "$case_name" == default || "$case_name" == empty-argument ]]; then
       assert_output_line_equals 'no environments selected'
     fi
@@ -658,7 +668,7 @@ run_environment_failure_case() {
 
   set +e
   SMOLVM_FAIL_ON=machine:exec \
-    SMOLVM_FAIL_MATCH='/opt/ompact-env/go.sh install-sdk' \
+    SMOLVM_FAIL_MATCH='/opt/ompact-env/go.sh install-system' \
     SMOLVM_FAIL_STATUS=4 \
     "$PROJECT_ROOT/build.sh" rust,go >"$BUILD_OUTPUT" 2>&1
   build_status=$?
@@ -666,8 +676,8 @@ run_environment_failure_case() {
 
   ((build_status == 4)) ||
     fail "Go SDK failure returned status $build_status, expected 4"
-  assert_file_contains "$BUILD_OUTPUT" 'Go SDK installation failed (exit status 4)'
-  assert_file_contains "$BUILD_OUTPUT" '/opt/ompact-env/go.sh install-sdk'
+  assert_file_contains "$BUILD_OUTPUT" 'go system installation failed (exit status 4)'
+  assert_file_contains "$BUILD_OUTPUT" '/opt/ompact-env/go.sh install-system'
 }
 
 run_signal_cleanup_case() {
@@ -772,6 +782,83 @@ run_invalid_selection_case() {
   [[ "$(<"$BUILD_OUTPUT")" == *"$expected_message"* ]] ||
     fail "invalid selection did not report: $expected_message"
 }
+
+run_custom_environment_case() {
+  local custom_project="$WORKDIR/custom-project"
+  local custom_output="$WORKDIR/ompact-custom"
+  local create_invocation
+  local environment_key
+
+  mkdir -p "$custom_project/env"
+  custom_project="$(cd "$custom_project" && pwd)"
+  cp "$PROJECT_ROOT/build.sh" "$custom_project/build.sh"
+  cp "$PROJECT_ROOT/Smolfile" "$custom_project/Smolfile"
+  for environment_name in custom extra; do
+    case "$environment_name" in
+    custom) environment_key=CUSTOM_ENV_VALUE ;;
+    extra) environment_key=EXTRA_ENV_VALUE ;;
+    esac
+    cat >"$custom_project/env/$environment_name.sh" <<CUSTOM_ENVIRONMENT
+#!/bin/sh
+set -eu
+case "\${1:-}" in
+defaults)
+  printf '$environment_key=from-fixture\\n'
+  printf 'ENV_PATH=/home/omp/.local/envs/$environment_name/bin\\n'
+  ;;
+install-system|install-user|check)
+  [ "\$#" -eq 1 ]
+  ;;
+*)
+  exit 2
+  ;;
+esac
+CUSTOM_ENVIRONMENT
+    chmod +x "$custom_project/env/$environment_name.sh"
+  done
+
+  : >"$SMOLVM_SMOLFILE_LOG"
+  : >"$SMOLVM_LOG"
+  export OUTPUT="$custom_output"
+  "$custom_project/build.sh" custom,extra >"$BUILD_OUTPUT" 2>&1 || {
+    printf 'custom environment build failed:\n%s\n' "$(<"$BUILD_OUTPUT")" >&2
+    exit 1
+  }
+
+  log_contents="$(<"$SMOLVM_LOG")"
+  create_invocation="$(find_log_line 'machine create ')" ||
+    fail 'custom environment is missing machine create invocation'
+  if [[ "$create_invocation" =~ --name[[:space:]]+(omp-package-builder-[^[:space:]]+) ]]; then
+    vm_name="${BASH_REMATCH[1]}"
+  else
+    fail 'custom environment machine create did not use a generated VM name'
+  fi
+
+  for environment_name in custom extra; do
+    case "$environment_name" in
+    custom) environment_key=CUSTOM_ENV_VALUE ;;
+    extra) environment_key=EXTRA_ENV_VALUE ;;
+    esac
+    [[ "$create_invocation" == *"--env $environment_key=from-fixture"* ]] ||
+      fail "$environment_name default was not forwarded"
+    assert_log_line_equals \
+      "machine exec --name $vm_name -- /bin/sh /opt/ompact-env/$environment_name.sh install-system "
+    assert_log_line_equals \
+      "machine exec --name $vm_name --user omp -- /bin/sh /opt/ompact-env/$environment_name.sh install-user "
+    assert_log_line_equals \
+      "machine exec --name $vm_name --user omp -- /bin/sh /opt/ompact-env/$environment_name.sh check "
+    assert_log_line_equals \
+      "packaged-launcher run --user omp -v $custom_project/env:/opt/ompact-env:ro -- /bin/sh /opt/ompact-env/$environment_name.sh check "
+  done
+  [[ "$create_invocation" == *'--env PATH=/home/omp/.local/envs/custom/bin:/home/omp/.local/envs/extra/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin'* ]] ||
+    fail 'custom environment PATH contributions were not combined in selection order'
+  [[ "$create_invocation" != *'--env ENV_PATH='* ]] ||
+    fail 'environment PATH metadata was passed through as a guest variable'
+  assert_file_contains "$SMOLVM_SMOLFILE_LOG" \
+    'PATH=/home/omp/.local/envs/custom/bin:/home/omp/.local/envs/extra/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin'
+}
+
+run_custom_environment_case
 
 run_rejected_case output-directory 'output exists and is not a regular file'
 run_rejected_case sidecar 'unexpected sidecar exists'

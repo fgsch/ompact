@@ -21,6 +21,7 @@ print_defaults() {
   printf 'CARGO_LLVM_COV_VERSION=%s\n' "$CARGO_LLVM_COV_VERSION"
   printf 'RUSTUP_HOME=%s\n' "$RUSTUP_HOME"
   printf 'CARGO_HOME=%s\n' "$CARGO_HOME"
+  printf 'ENV_PATH=%s\n' "$CARGO_HOME/bin"
 }
 
 tmpdir=
@@ -94,7 +95,10 @@ install_tools() {
     printf 'Rust SDK is not installed\n' >&2
     exit 1
   fi
-  install -d -m 0755 "$CARGO_HOME/registry" "$CARGO_HOME/git" "$CARGO_HOME/bin"
+  PATH="$CARGO_HOME/bin:$PATH"
+  export PATH
+  install -d -m 0755 "$CARGO_HOME/registry" "$CARGO_HOME/git" \
+    "$CARGO_HOME/bin"
   cargo install --locked --version "$CARGO_AUDIT_VERSION" cargo-audit
   cargo install --locked --version "$CARGO_DENY_VERSION" cargo-deny
   cargo install --locked --version "$CARGO_NEXTEST_VERSION" cargo-nextest
@@ -103,6 +107,8 @@ install_tools() {
 }
 
 check_environment() {
+  PATH="$CARGO_HOME/bin:$PATH"
+  export PATH
   tmpdir=$(mktemp -d)
 
   toolchain_sysroot=$(rustc --print sysroot)
@@ -128,12 +134,19 @@ check_environment() {
   for writable_path in "$CARGO_HOME" "$CARGO_HOME/bin" \
     "$CARGO_HOME/registry" "$CARGO_HOME/git"; do
     if [ ! -d "$writable_path" ] || [ ! -w "$writable_path" ]; then
-      printf 'Cargo directory is missing or not writable: %s\n' "$writable_path" >&2
+      printf 'Rust tool path is missing or not writable: %s\n' "$writable_path" >&2
       exit 1
     fi
     probe="$writable_path/.ompact-write-test"
     touch "$probe"
     rm -f "$probe"
+  done
+
+  for tool in cargo cargo-audit cargo-deny cargo-nextest cargo-llvm-cov; do
+    if [ ! -x "$CARGO_HOME/bin/$tool" ]; then
+      printf 'Rust tool is missing or not executable: %s\n' "$CARGO_HOME/bin/$tool" >&2
+      exit 1
+    fi
   done
 
   rustc --version
@@ -198,34 +211,34 @@ trap 'exit 1' 1 2 3 15
 case "${1:-}" in
 defaults)
   [ "$#" -eq 1 ] || {
-    printf 'usage: %s defaults|install-sdk|install-tools|check\n' "$0" >&2
+    printf 'usage: %s defaults|install-system|install-user|check\n' "$0" >&2
     exit 2
   }
   print_defaults
   ;;
-install-sdk)
+install-system)
   [ "$#" -eq 1 ] || {
-    printf 'usage: %s defaults|install-sdk|install-tools|check\n' "$0" >&2
+    printf 'usage: %s defaults|install-system|install-user|check\n' "$0" >&2
     exit 2
   }
   install_sdk
   ;;
-install-tools)
+install-user)
   [ "$#" -eq 1 ] || {
-    printf 'usage: %s defaults|install-sdk|install-tools|check\n' "$0" >&2
+    printf 'usage: %s defaults|install-system|install-user|check\n' "$0" >&2
     exit 2
   }
   install_tools
   ;;
 check)
   [ "$#" -eq 1 ] || {
-    printf 'usage: %s defaults|install-sdk|install-tools|check\n' "$0" >&2
+    printf 'usage: %s defaults|install-system|install-user|check\n' "$0" >&2
     exit 2
   }
   check_environment
   ;;
 *)
-  printf 'usage: %s defaults|install-sdk|install-tools|check\n' "$0" >&2
+  printf 'usage: %s defaults|install-system|install-user|check\n' "$0" >&2
   exit 2
   ;;
 esac
