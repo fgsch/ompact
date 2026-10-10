@@ -85,6 +85,9 @@ Each build starts from scratch, removes its disposable builder, and replaces
 only its owned regular output file. Existing directories, sidecars, and
 unexpected output files cause the build to abort.
 
+On failure, the build reports the failed command and exit status; environment
+setup failures also identify the failed step.
+
 ## Run
 
 Runtime networking is disabled by default. The packaged runtime starts in

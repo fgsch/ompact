@@ -19,6 +19,34 @@ die() {
   printf 'error: %s\n' "$*" >&2
   exit 1
 }
+report_failure() {
+  local status="$1"
+  local line_number="$2"
+  local failed_command="$3"
+
+  trap - ERR
+  printf 'error: build.sh failed in command block starting at line %s (exit status %s): %s\n' \
+    "$line_number" "$status" "$failed_command" >&2
+  exit "$status"
+}
+trap 'report_failure "$?" "$LINENO" "$BASH_COMMAND"' ERR
+run_step() {
+  local label="$1"
+  local status
+  shift
+
+  printf '==> %s\n' "$label"
+  if "$@"; then
+    return 0
+  else
+    status=$?
+    printf 'error: %s failed (exit status %d)\n' "$label" "$status" >&2
+    printf '  command:' >&2
+    printf ' %q' "$@" >&2
+    printf '\n' >&2
+    exit "$status"
+  fi
+}
 
 export PATH="$HOME/.local/bin:$PATH"
 command -v smolvm >/dev/null 2>&1 || die "smolvm is unavailable"
@@ -118,25 +146,33 @@ if ((${#SELECTED_ENVIRONMENTS[@]})); then
   for environment_name in "${SELECTED_ENVIRONMENTS[@]}"; do
     case "$environment_name" in
     rust)
-      smolvm machine exec --name "$VM_NAME" -- \
+      run_step "Rust SDK installation" \
+        smolvm machine exec --name "$VM_NAME" -- \
         /bin/sh "/opt/ompact-env/$environment_name.sh" install-sdk
-      smolvm machine exec --name "$VM_NAME" --user omp -- \
+      run_step "Rust tool installation" \
+        smolvm machine exec --name "$VM_NAME" --user omp -- \
         /bin/sh "/opt/ompact-env/$environment_name.sh" install-tools
-      smolvm machine exec --name "$VM_NAME" --user omp -- \
+      run_step "Rust environment check" \
+        smolvm machine exec --name "$VM_NAME" --user omp -- \
         /bin/sh "/opt/ompact-env/$environment_name.sh" check
       ;;
     go)
-      smolvm machine exec --name "$VM_NAME" -- \
+      run_step "Go SDK installation" \
+        smolvm machine exec --name "$VM_NAME" -- \
         /bin/sh "/opt/ompact-env/$environment_name.sh" install-sdk
-      smolvm machine exec --name "$VM_NAME" --user omp -- \
+      run_step "Go tool installation" \
+        smolvm machine exec --name "$VM_NAME" --user omp -- \
         /bin/sh "/opt/ompact-env/$environment_name.sh" install-tools
-      smolvm machine exec --name "$VM_NAME" --user omp -- \
+      run_step "Go environment check" \
+        smolvm machine exec --name "$VM_NAME" --user omp -- \
         /bin/sh "/opt/ompact-env/$environment_name.sh" check
       ;;
     *)
-      smolvm machine exec --name "$VM_NAME" -- \
+      run_step "$environment_name installation" \
+        smolvm machine exec --name "$VM_NAME" -- \
         /bin/sh "/opt/ompact-env/$environment_name.sh" install
-      smolvm machine exec --name "$VM_NAME" -- \
+      run_step "$environment_name environment check" \
+        smolvm machine exec --name "$VM_NAME" -- \
         /bin/sh "/opt/ompact-env/$environment_name.sh" check
       ;;
     esac
@@ -168,10 +204,12 @@ test -x "$OUTPUT"
 if ((${#SELECTED_ENVIRONMENTS[@]})); then
   for environment_name in "${SELECTED_ENVIRONMENTS[@]}"; do
     if [[ "$environment_name" == rust || "$environment_name" == go ]]; then
-      "$OUTPUT" run --user omp -v "$ENV_VOLUME_CREATE" -- \
+      run_step "$environment_name packaged environment check" \
+        "$OUTPUT" run --user omp -v "$ENV_VOLUME_CREATE" -- \
         /bin/sh "/opt/ompact-env/$environment_name.sh" check
     else
-      "$OUTPUT" run -v "$ENV_VOLUME_CREATE" -- \
+      run_step "$environment_name packaged environment check" \
+        "$OUTPUT" run -v "$ENV_VOLUME_CREATE" -- \
         /bin/sh "/opt/ompact-env/$environment_name.sh" check
     fi
   done

@@ -187,8 +187,10 @@ if [[ "${1:-}" == --version ]]; then
   printf 'smolvm test-version\n'
   exit 0
 fi
-if [[ "${SMOLVM_FAIL_ON:-}" == "${1:-}:${2:-}" ]]; then
-  exit 1
+if [[ "${SMOLVM_FAIL_ON:-}" == "${1:-}:${2:-}" ]] &&
+  [[ -z "${SMOLVM_FAIL_MATCH:-}" ||
+    "$*" == *"$SMOLVM_FAIL_MATCH"* ]]; then
+  exit "${SMOLVM_FAIL_STATUS:-1}"
 fi
 if [[ "${SMOLVM_EXISTING:-0}" == 1 &&
   "${1:-}:${2:-}" == machine:create ]]; then
@@ -628,10 +630,14 @@ run_failure_cleanup_case() {
   : >"$SMOLVM_LOG"
   export OUTPUT="$WORKDIR/ompact-failure"
   set +e
-  SMOLVM_FAIL_ON=machine:start "$PROJECT_ROOT/build.sh" >"$BUILD_OUTPUT" 2>&1
+  SMOLVM_FAIL_ON=machine:start SMOLVM_FAIL_STATUS=4 \
+    "$PROJECT_ROOT/build.sh" >"$BUILD_OUTPUT" 2>&1
   build_status=$?
   set -e
-  ((build_status != 0)) || fail 'failure case unexpectedly succeeded'
+  ((build_status == 4)) || fail "failure case returned status $build_status, expected 4"
+  assert_file_contains "$BUILD_OUTPUT" 'build.sh failed in command block starting at line'
+  assert_file_contains "$BUILD_OUTPUT" 'exit status 4'
+  assert_file_contains "$BUILD_OUTPUT" "smolvm machine start --name \"\$VM_NAME\""
   log_contents="$(<"$SMOLVM_LOG")"
   create_invocation="$(find_log_line 'machine create ')" ||
     fail 'failure case is missing machine create invocation'
@@ -642,6 +648,26 @@ run_failure_cleanup_case() {
   fi
   assert_log_contains "machine stop --name $vm_name "
   assert_log_contains "machine delete --name $vm_name --force "
+}
+run_environment_failure_case() {
+  local build_status
+  local output="$WORKDIR/ompact-go-install-failure"
+  rm -f -- "$STATUS_COUNT" "$output" "$output.smolmachine"
+  : >"$SMOLVM_LOG"
+  export OUTPUT="$output"
+
+  set +e
+  SMOLVM_FAIL_ON=machine:exec \
+    SMOLVM_FAIL_MATCH='/opt/ompact-env/go.sh install-sdk' \
+    SMOLVM_FAIL_STATUS=4 \
+    "$PROJECT_ROOT/build.sh" rust,go >"$BUILD_OUTPUT" 2>&1
+  build_status=$?
+  set -e
+
+  ((build_status == 4)) ||
+    fail "Go SDK failure returned status $build_status, expected 4"
+  assert_file_contains "$BUILD_OUTPUT" 'Go SDK installation failed (exit status 4)'
+  assert_file_contains "$BUILD_OUTPUT" '/opt/ompact-env/go.sh install-sdk'
 }
 
 run_signal_cleanup_case() {
@@ -752,6 +778,7 @@ run_rejected_case sidecar 'unexpected sidecar exists'
 run_rejected_case legacy-sidecar 'unexpected legacy sidecar exists'
 run_generated_create_failure_case
 run_failure_cleanup_case
+run_environment_failure_case
 
 run_signal_cleanup_case
 

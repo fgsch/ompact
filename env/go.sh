@@ -7,7 +7,7 @@ GOPLS_VERSION=${GOPLS_VERSION:-0.23.0}
 GOVULNCHECK_VERSION=${GOVULNCHECK_VERSION:-1.8.0}
 STATICCHECK_VERSION=${STATICCHECK_VERSION:-0.8.1}
 GOLANGCI_LINT_VERSION=${GOLANGCI_LINT_VERSION:-2.14.0}
-go_root=/usr/local/go
+go_root=${GO_ROOT:-/usr/local/go}
 
 export GO_VERSION GOPLS_VERSION GOVULNCHECK_VERSION STATICCHECK_VERSION
 export GOLANGCI_LINT_VERSION
@@ -41,7 +41,7 @@ install_sdk() {
 
   tmpdir=$(mktemp -d)
   metadata="$tmpdir/go.json"
-  curl -fsSLo "$metadata" "https://go.dev/dl/?mode=json"
+  curl -fsSLo "$metadata" "https://go.dev/dl/?mode=json&include=all"
 
   go_version=$GO_VERSION
   case "$go_version" in
@@ -54,11 +54,15 @@ install_sdk() {
     ;;
   esac
 
-  archive_info=$(jq -er \
+  if ! archive_info=$(jq -er \
     --arg version "$go_version" --arg arch "$go_arch" \
     'first(.[] | select(.version == $version) | .files[] |
       select(.os == "linux" and .arch == $arch and .kind == "archive") |
-      [.filename, .sha256] | @tsv)' "$metadata")
+      [.filename, .sha256] | @tsv)' "$metadata"); then
+    printf 'Go release %s has no linux/%s archive in download metadata\n' \
+      "$go_version" "$go_arch" >&2
+    exit 1
+  fi
   IFS="$(printf '\t')" read -r archive_name archive_sha256 <<EOF
 $archive_info
 EOF
