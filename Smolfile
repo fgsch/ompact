@@ -53,15 +53,15 @@ trap - EXIT
 rm -rf /var/lib/apt/lists/*
 ' ''',
   '''bash -ceu '
-omp_version=v18.8.7
+omp_version=v18.9.0
 case "$(dpkg --print-architecture)" in
 arm64)
   omp_binary=omp-linux-arm64
-  omp_sha256=c8542530ed7cb54ce0edd6ac2cbbdab892e8b74cd740074686dc6d2c5786b0fc
+  omp_sha256=00315df028377d07a1ba18cb901734dcaccfe3c2039481913a86efecc9f78945
   ;;
 amd64)
   omp_binary=omp-linux-x64
-  omp_sha256=b87f9835a0acdbb81bbbad8273aa2d999b608a208598421a9584cffeb3139a8a
+  omp_sha256=12b56956bdb3b9fcecd7af7106ddbc4910c9561300ce770d8ca5a7eeecee702c
   ;;
 *)
   printf "unsupported architecture for omp: %s\n" "$(dpkg --print-architecture)" >&2
