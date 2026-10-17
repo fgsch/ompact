@@ -81,11 +81,11 @@ assert_file_contains "$PROJECT_ROOT/Smolfile" \
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
   'trixie-security main'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'omp_version=v18.11.1'
+  'omp_version=v18.11.3'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'omp_sha256=b6e8e13a54d5fa3b374033b35778d9e0d98bb350ad80d03c183983520e9f2db1'
+  'omp_sha256=c39cf4ab3633a7003a37c619744838125a99208d36ca748e59c4e62815170cba'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'omp_sha256=bf1e86a935b1ea26166a5280001eccea1205e6c21efe1b5853f0fd368c754974'
+  'omp_sha256=01fbb5f08b0ce0d70bd0b1d6655a6ccd59cefcae0f1023e02bb30f9a70bc2d0a'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
   'jj_version=v0.45.1'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
