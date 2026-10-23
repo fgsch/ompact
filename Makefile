@@ -16,6 +16,7 @@ build: ## Build ompact
 test: ## Run repository tests
 	./tests/build.sh.test
 	./tests/env.test
+	./tests/install.test
 	./tests/update-omp.test
 
 runtime-test: ## Run tests against ./ompact

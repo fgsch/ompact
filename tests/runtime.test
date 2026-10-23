@@ -192,6 +192,8 @@ for tool in cargo go; do
 done
 
 if ((${#TOOLS_PRESENT[@]})); then
+  GH_PIN="$(sed -n 's/^gh_version=v//p' "$PROJECT_ROOT/Smolfile")"
+  AST_GREP_PIN="$(sed -n 's/^sg_version=//p' "$PROJECT_ROOT/Smolfile")"
   printf 'verifying tool access for: %s\n' "${TOOLS_PRESENT[*]}"
   for tool in "${TOOLS_PRESENT[@]}"; do
     # Run through runuser to verify access as the omp user
@@ -227,7 +229,7 @@ if ((${#TOOLS_PRESENT[@]})); then
       ;;
     fd)
       version_command='fd --version'
-      expected='fd 10.5.0'
+      expected='fd 10.5.2'
       ;;
     rg)
       version_command='rg --version'
@@ -235,7 +237,7 @@ if ((${#TOOLS_PRESENT[@]})); then
       ;;
     gh)
       version_command='gh --version'
-      expected='gh version 2.102.0'
+      expected="gh version $GH_PIN"
       ;;
     sd)
       # The v1.1.0 release binary inherits upstream's workspace version 1.0.0.
@@ -244,11 +246,20 @@ if ((${#TOOLS_PRESENT[@]})); then
       ;;
     ast-grep)
       version_command='ast-grep --version'
-      expected='0.45.3'
+      expected="ast-grep $AST_GREP_PIN"
       ;;
     esac
     OUTPUT="$("$PROJECT_ROOT/ompact" run -- \
       /usr/sbin/runuser --user omp -- /bin/sh -c "$version_command")"
+    if [[ "$tool" == gh || "$tool" == ast-grep ]]; then
+      VERSION_LINE="${OUTPUT%%$'\n'*}"
+      VERSION_LINE="${VERSION_LINE%% (*}"
+      [[ "$VERSION_LINE" == "$expected" ]] || {
+        printf '%s version mismatch (expected: %s, got: %s)\n' \
+          "$tool" "$expected" "$VERSION_LINE" >&2
+        exit 1
+      }
+    fi
     [[ "$OUTPUT" == *"$expected"* ]] || {
       printf '%s not accessible to omp user (expected: %s)\n' "$tool" "$expected" >&2
       exit 1

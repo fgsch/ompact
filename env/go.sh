@@ -2,11 +2,11 @@
 
 set -eu
 
-GO_VERSION=${GO_VERSION:-go1.27.2}
-GOPLS_VERSION=${GOPLS_VERSION:-0.23.0}
-GOVULNCHECK_VERSION=${GOVULNCHECK_VERSION:-1.8.0}
-STATICCHECK_VERSION=${STATICCHECK_VERSION:-0.8.1}
-GOLANGCI_LINT_VERSION=${GOLANGCI_LINT_VERSION:-2.14.0}
+GO_VERSION=${GO_VERSION:-go1.27.4}
+GOPLS_VERSION=${GOPLS_VERSION:-0.24.0}
+GOVULNCHECK_VERSION=${GOVULNCHECK_VERSION:-1.9.0}
+STATICCHECK_VERSION=${STATICCHECK_VERSION:-0.8.2}
+GOLANGCI_LINT_VERSION=${GOLANGCI_LINT_VERSION:-2.15.0}
 go_root=${GO_ROOT:-/usr/local/go}
 GOBIN=${GOBIN:-/home/omp/go/bin}
 
@@ -184,7 +184,12 @@ prepare_install_paths() {
 cleanup_install_artifacts() {
   for path in "$gopath"/* "$gopath"/.[!.]* "$gopath"/..?*; do
     [ -e "$path" ] || [ -L "$path" ] || continue
-    [ ! "$path" -ef "$GOBIN" ] || continue
+    if [ -d "$path" ]; then
+      path_directory=$(cd "$path" && pwd -P)
+      if [ "$path_directory" = "$gobin_directory" ]; then
+        continue
+      fi
+    fi
     remove_install_path "$path"
   done
   remove_install_path "$gocache"

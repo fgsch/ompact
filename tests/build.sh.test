@@ -37,8 +37,16 @@ assert_file_not_contains() {
     fail "$file unexpectedly contains: $needle"
 }
 
+# Approved dependency pins are guarded independently of installer behavior.
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'image = "debian:trixie-slim@sha256:a99cfc517144bc59b1978475ec53b46ecabec7e43635402ee5b77cc54cd1b20a"'
+  'image = "debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2"'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'http://snapshot.debian.org/archive/debian/20261113T000000Z trixie main'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'http://snapshot.debian.org/archive/debian/20261113T000000Z trixie-updates main'
+assert_file_contains "$PROJECT_ROOT/Smolfile" \
+  'http://snapshot.debian.org/archive/debian-security/20261113T000000Z trixie-security main'
+
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
   'cmd = ["--"]'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
@@ -74,39 +82,27 @@ assert_file_not_contains "$PROJECT_ROOT/build.sh" \
 assert_file_not_contains "$PROJECT_ROOT/build.sh" \
   "SMOLFILE=\"\${SMOLFILE:-"
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'http://snapshot.debian.org/archive/debian/20261002T000000Z trixie main'
-assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'http://snapshot.debian.org/archive/debian/20261002T000000Z trixie-updates main'
-assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'http://snapshot.debian.org/archive/debian-security/20261002T000000Z trixie-security main'
-assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'trixie-security main'
-assert_file_contains "$PROJECT_ROOT/Smolfile" \
   'omp_version=v18.19.0'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
   'omp_sha256=61826bf89c2c0512417fee05fa2f486e60ee11b23ea95a17257a6c49edb6b8d5'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
   'omp_sha256=b44fda2ae5c9cce2bbe124d1672cba532a136d9e1eef68599b16efcd3bc5c626'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'jj_version=v0.45.1'
+  $'jj_version=v0.47.1\n'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  "jj-\${jj_version}-aarch64-unknown-linux-musl.tar.gz"
+  "jj_archive=jj-\${jj_version}-aarch64-unknown-linux-musl.tar.gz"$'\n'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  "jj-\${jj_version}-x86_64-unknown-linux-musl.tar.gz"
+  "jj_archive=jj-\${jj_version}-x86_64-unknown-linux-musl.tar.gz"$'\n'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  "https://github.com/jj-vcs/jj/releases/download/\$jj_version/\$jj_archive"
+  $'jj_sha256=0f300e1576de8dabe0a9dedf0b87ae44f8accea5cf54d9a342a51061c1fb1bcd\n'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'jj_sha256=7349a43dd5a20dbc998b10114daa0ee63d2ab863fb822c7eb6b0ebca5903cc69'
+  $'jj_sha256=d4b657f622ee50929c8916466dfa3d6a6c17a0a32b50e7b2c793707ec9ebcad7\n'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'jj_sha256=f35438350b5d61963aac5dd74ede510b31d6b9690769d1a6268cf058cc825f72'
+  'fd_version=v10.5.2'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  "install -m 0755 \"\$jj_extract/jj\" /usr/local/bin/jj"
+  'fd_sha256=63ea52cb31586e6d98efa2f06d73d542f16c7d0c4af0f07b579aaf9714cf907a'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'fd_version=v10.5.0'
-assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'fd_sha256=d76c4317f7d5dba69f8a2a15856c90c777e7f0dd4e85f0de8c76de6992c374d4'
-assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'fd_sha256=761c72dc8e120d85b22292063be8a796e2eeb20eb3e4f38b8fa2343ccf3514a7'
+  'fd_sha256=7e2d07fa2b8807642aaec67b7e2972a9fbe4db26fcb340a7372392db42b26694'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
   'rg_version=15.2.0'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
@@ -114,19 +110,15 @@ assert_file_contains "$PROJECT_ROOT/Smolfile" \
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
   'rg_sha256=33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'gh_version=v2.102.0'
+  $'gh_version=v2.104.0\n'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'gh_2.102.0_linux_arm64.tar.gz'
+  $'gh_archive=gh_2.104.0_linux_arm64.tar.gz\n'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'gh_2.102.0_linux_amd64.tar.gz'
+  $'gh_archive=gh_2.104.0_linux_amd64.tar.gz\n'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'gh_sha256=7862c86c72f43df3a2d93ddde6f473285b4e2af61b494849846827e513ef6484'
+  $'gh_sha256=cb34cefc6f4e77b90731374a2b737516bb8f3033c6ca46aa949e5344f68069e3\n'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'gh_sha256=bb766f710eef8ede859c18578c72c327597cd4c8a85b06001b1f3843c6019386'
-assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  "https://github.com/cli/cli/releases/download/\$gh_version/\$gh_archive"
-assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  "install -m 0755 \"\$gh_extract/\${gh_archive%.tar.gz}/bin/gh\" /usr/local/bin/gh"
+  $'gh_sha256=98cb101ad87dbbd3f6b2f2bfcbd43197ccd07643140121d8a9cfaa91eadbc24e\n'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
   'sd_version=v1.1.0'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
@@ -142,21 +134,15 @@ assert_file_contains "$PROJECT_ROOT/Smolfile" \
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
   "install -m 0755 \"\$sd_extract/\${sd_archive%.tar.gz}/sd\" /usr/local/bin/sd"
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'sg_version=0.45.3'
+  $'sg_version=0.51.2\n'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'app-aarch64-unknown-linux-gnu.zip'
+  $'sg_archive=app-aarch64-unknown-linux-gnu.zip\n'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'app-x86_64-unknown-linux-gnu.zip'
+  $'sg_archive=app-x86_64-unknown-linux-gnu.zip\n'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'sg_sha256=b39cfbc58da4b869a88b8a4bc57bd5deb0d24541e704cf7c257da7b53ec81c8f'
+  $'sg_sha256=c3ab2bd43959db28621dc1551c13ea5fe5db4c1fc7b18086dade6b65042c78d0\n'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'sg_sha256=f8ac830881339d1edee6b2652f54798c0f4da5a827f2db38a08ee31117783ce8'
-assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  "https://github.com/ast-grep/ast-grep/releases/download/\$sg_version/\$sg_archive"
-assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  "install -m 0755 \"\$sg_extract/sg\" /usr/local/bin/sg"
-assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  "install -m 0755 \"\$sg_extract/ast-grep\" /usr/local/bin/ast-grep"
+  $'sg_sha256=40604c21c38d4c7581c56bdddeef277c56bf3c0113620aa96e78ae87e82366df\n'
 assert_file_not_contains "$PROJECT_ROOT/Smolfile" \
   'fd-find ripgrep'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
@@ -169,12 +155,30 @@ assert_file_not_contains "$PROJECT_ROOT/env/python.sh" \
   'PYTHON_VERSION='
 assert_file_not_contains "$PROJECT_ROOT/Smolfile" \
   'https://omp.sh/install'
+assert_file_contains "$PROJECT_ROOT/env/go.sh" \
+  $'GO_VERSION=${GO_VERSION:-go1.27.4}\n'
+assert_file_contains "$PROJECT_ROOT/env/go.sh" \
+  $'GOPLS_VERSION=${GOPLS_VERSION:-0.24.0}\n'
+assert_file_contains "$PROJECT_ROOT/env/go.sh" \
+  $'GOVULNCHECK_VERSION=${GOVULNCHECK_VERSION:-1.9.0}\n'
+assert_file_contains "$PROJECT_ROOT/env/go.sh" \
+  $'STATICCHECK_VERSION=${STATICCHECK_VERSION:-0.8.2}\n'
+assert_file_contains "$PROJECT_ROOT/env/go.sh" \
+  $'GOLANGCI_LINT_VERSION=${GOLANGCI_LINT_VERSION:-2.15.0}\n'
+assert_file_contains "$PROJECT_ROOT/env/rust.sh" \
+  $'RUST_TOOLCHAIN=${RUST_TOOLCHAIN:-1.100.0}\n'
+assert_file_contains "$PROJECT_ROOT/env/rust.sh" \
+  $'CARGO_AUDIT_VERSION=${CARGO_AUDIT_VERSION:-0.23.0}\n'
+assert_file_contains "$PROJECT_ROOT/env/rust.sh" \
+  $'CARGO_DENY_VERSION=${CARGO_DENY_VERSION:-0.20.2}\n'
+assert_file_contains "$PROJECT_ROOT/env/rust.sh" \
+  $'CARGO_NEXTEST_VERSION=${CARGO_NEXTEST_VERSION:-0.9.151}\n'
+assert_file_contains "$PROJECT_ROOT/env/rust.sh" \
+  $'CARGO_LLVM_COV_VERSION=${CARGO_LLVM_COV_VERSION:-0.9.1}\n'
 assert_file_contains "$PROJECT_ROOT/env/python.sh" \
-  'UV_INSTALLER_SHA256=58488ae8dbd0773134c92c85e901430e33f99d975bd7f929d26aa9ab0c2f9390'
+  $'UV_VERSION=${UV_VERSION:-0.13.8}\n'
 assert_file_contains "$PROJECT_ROOT/env/python.sh" \
-  "curl -fsSL -o \"\$uv_install_script\""
-assert_file_contains "$PROJECT_ROOT/env/python.sh" \
-  'sha256sum -c -'
+  $'UV_INSTALLER_SHA256=4d8fa56e00f16b66feecacbd943773c61d61ab768b13856de350d86fd8740e2f\n'
 
 cat >"$FAKE_SMOLVM" <<'FAKE_SMOLVM'
 #!/usr/bin/env bash
@@ -501,7 +505,10 @@ run_case() {
       esac
     done
     if ((${#expected_path_entries[@]})); then
-      expected_runtime_path=$(IFS=:; printf '%s' "${expected_path_entries[*]}")
+      expected_runtime_path=$(
+        IFS=:
+        printf '%s' "${expected_path_entries[*]}"
+      )
       [[ "$create_invocation" == *"--env PATH=$expected_runtime_path:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin"* ]] ||
         fail "$case_name machine create is missing selected environment PATH entries"
       expected_pack_path="$expected_runtime_path:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin"

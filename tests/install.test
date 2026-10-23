@@ -1,0 +1,166 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+python3 - "$PROJECT_ROOT" <<'PY'
+import hashlib
+import io
+import json
+import os
+from pathlib import Path
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+import tarfile
+import tempfile
+import zipfile
+
+root = Path(sys.argv[1])
+# Bootstrap commands use TOML literal strings, so no host TOML parser is needed.
+commands_in_config = re.findall(r"(?ms)^  '''(.*?)''',?$", (root / "Smolfile").read_text())
+bootstrap = shlex.split(commands_in_config[1])
+versions = dict(re.findall(r"^(\w+)_version=(\S+)$", bootstrap[2], re.MULTILINE))
+real_install = shutil.which("install")
+checksum_command = [shutil.which("sha256sum")] if shutil.which("sha256sum") else [shutil.which("shasum"), "-a", "256"]
+assert real_install and checksum_command[0], "install and a SHA-256 checker are required"
+
+# Only transport, platform detection, and the installation destination are
+# adapted. The bootstrap, archive extraction, and checksum checks execute normally.
+adapter = "#!" + sys.executable + r'''
+import json
+import os
+from pathlib import Path
+import shutil
+import sys
+
+command = Path(sys.argv[0]).name
+args = sys.argv[1:]
+if command == "dpkg":
+    assert args == ["--print-architecture"]
+    print(os.environ["FIXTURE_ARCH"])
+elif command == "curl":
+    url, = [arg for arg in args if arg.startswith("https://")]
+    downloads = json.loads(os.environ["FIXTURE_DOWNLOADS"])
+    source = downloads[url.rsplit("/", 1)[-1]]
+    shutil.copyfile(source, args[args.index("-o") + 1])
+elif command == "install":
+    destination = Path(args[-1])
+    if destination.parent == Path("/usr/local/bin"):
+        args[-1] = str(Path(os.environ["FIXTURE_BIN"]) / destination.name)
+    else:
+        assert Path(os.environ["FIXTURE_WORK"]) in destination.parents, destination
+    os.execv(os.environ["REAL_INSTALL"], [os.environ["REAL_INSTALL"], *args])
+elif command == "sha256sum":
+    checker = json.loads(os.environ["CHECKSUM_COMMAND"])
+    os.execv(checker[0], [*checker, *args])
+else:
+    raise AssertionError(command)
+'''
+
+with tempfile.TemporaryDirectory(prefix="ompact-install-test-") as directory:
+    work = Path(directory)
+    commands = work / "commands"
+    commands.mkdir()
+    for command in ("dpkg", "curl", "install", "sha256sum"):
+        executable = commands / command
+        executable.write_text(adapter)
+        executable.chmod(0o755)
+
+    fixtures = {}
+    for arch, target in (("arm64", "aarch64"), ("amd64", "x86_64")):
+        archives = {
+            "omp": ("omp-linux-arm64" if arch == "arm64" else "omp-linux-x64", None),
+            "jj": (f"jj-{versions['jj']}-{target}-unknown-linux-musl.tar.gz", "jj"),
+            "gh": (f"gh_{versions['gh'].lstrip('v')}_linux_{arch}.tar.gz", "bin/gh"),
+            "sg": (f"app-{target}-unknown-linux-gnu.zip", "ast-grep"),
+        }
+        for tool in ("fd", "rg", "sd"):
+            name = "ripgrep" if tool == "rg" else tool
+            archives[tool] = (f"{name}-{versions[tool]}-{target}-unknown-linux-musl.tar.gz", tool)
+        for tool, (filename, member) in archives.items():
+            for corrupt in (False, True):
+                # Both variants remain valid archives. Skipping a checksum must
+                # install the tampered payload, not merely fail during extraction.
+                payload = f"#!/bin/sh\n# {tool} {arch} {'tampered' if corrupt else 'trusted'}\nexit 0\n".encode()
+                archive = work / f"{arch}-{tool}-{'bad' if corrupt else 'good'}"
+                if member is None:
+                    archive.write_bytes(payload)
+                elif filename.endswith(".zip"):
+                    with zipfile.ZipFile(archive, "w") as output:
+                        output.writestr("ast-grep", payload)
+                        output.writestr("sg", payload)
+                else:
+                    prefix = "" if tool == "jj" else filename[:-7] + "/"
+                    with tarfile.open(archive, "w:gz") as output:
+                        entry = tarfile.TarInfo(prefix + member)
+                        entry.size = len(payload)
+                        entry.mode = 0o755
+                        output.addfile(entry, io.BytesIO(payload))
+                fixtures[arch, tool, corrupt] = (filename, archive, payload)
+
+    def environment(case, arch, downloads):
+        installed = case / "bin"
+        installed.mkdir(parents=True)
+        return dict(os.environ, PATH=f"{commands}:{os.environ['PATH']}",
+                    TMPDIR=str(case), FIXTURE_ARCH=arch, FIXTURE_WORK=str(work),
+                    FIXTURE_BIN=str(installed), FIXTURE_DOWNLOADS=json.dumps(downloads),
+                    REAL_INSTALL=real_install, CHECKSUM_COMMAND=json.dumps(checksum_command))
+
+    for arch in ("arm64", "amd64"):
+        for corrupt_tool in (None, "jj", "gh", "sg"):
+            case = work / f"{arch}-{corrupt_tool or 'valid'}"
+            downloads = {filename: str(path) for (platform, tool, corrupt), (filename, path, _) in fixtures.items()
+                         if corrupt == (tool == corrupt_tool)}
+            env = environment(case, arch, downloads)
+            # Substitute trusted fixture digests, never the verification logic.
+            def fixture_digest(match):
+                tool = match.group(2)
+                archive = fixtures[arch, tool, False][1]
+                digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+                return f"{match.group(1)}{tool}_sha256={digest}"
+            script = re.sub(r"^(\s*)(\w+)_sha256=[0-9a-f]{64}$", fixture_digest,
+                            bootstrap[2], flags=re.MULTILINE)
+            result = subprocess.run([*bootstrap[:2], script], env=env, universal_newlines=True,
+                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if corrupt_tool:
+                binary = "ast-grep" if corrupt_tool == "sg" else corrupt_tool
+                assert result.returncode != 0, f"{arch}: accepted tampered {binary}"
+                assert not (case / "bin" / binary).exists(), f"{arch}: installed tampered {binary}"
+                print(f"{arch}: rejected tampered {binary} before installation")
+            else:
+                assert result.returncode == 0, result.stdout + result.stderr
+                for tool, binary in (("jj", "jj"), ("gh", "gh"), ("sg", "ast-grep")):
+                    installed = case / "bin" / binary
+                    assert installed.read_bytes() == fixtures[arch, tool, False][2], f"{binary}: wrong architecture payload"
+                    assert os.access(installed, os.X_OK), f"{binary}: installed binary is not executable"
+                print(f"{arch}: installed the matching architecture archives")
+
+    trusted_installer = work / "uv-installer"
+    trusted_installer.write_text('#!/bin/sh\nprintf "verified\\n" >"$FIXTURE_UV_MARKER"\n')
+    tampered_installer = work / "uv-installer-tampered"
+    tampered_installer.write_text('#!/bin/sh\nprintf "tampered\\n" >"$FIXTURE_UV_MARKER"\n')
+    uv_script = re.sub(r"^UV_INSTALLER_SHA256=[0-9a-f]{64}$",
+                       "UV_INSTALLER_SHA256=" + hashlib.sha256(trusted_installer.read_bytes()).hexdigest(),
+                       (root / "env/python.sh").read_text(), flags=re.MULTILINE)
+    for corrupt in (False, True):
+        case = work / f"uv-{'bad' if corrupt else 'good'}"
+        installer = tampered_installer if corrupt else trusted_installer
+        env = environment(case, "arm64", {"install.sh": str(installer)})
+        marker = case / "executed"
+        env.update(UV_CACHE_DIR=str(case / "cache"), FIXTURE_UV_MARKER=str(marker))
+        result = subprocess.run(["sh", "-c", uv_script, "python.sh", "install-system"],
+                                env=env, universal_newlines=True,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if corrupt:
+            assert result.returncode != 0, "accepted a tampered uv installer"
+            assert not marker.exists(), "executed a tampered uv installer"
+            print("uv: rejected tampered installer before execution")
+        else:
+            assert result.returncode == 0, result.stdout + result.stderr
+            assert marker.read_text() == "verified\n", "trusted uv installer did not execute"
+
+print("installer integrity harness passed")
+PY

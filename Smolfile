@@ -1,4 +1,4 @@
-image = "debian:trixie-slim@sha256:a99cfc517144bc59b1978475ec53b46ecabec7e43635402ee5b77cc54cd1b20a"
+image = "debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2"
 cpus = 4
 memory = 8192
 net = false
@@ -13,9 +13,9 @@ env = [
 init = [
   '''bash -ceu '
 cat >/etc/apt/sources.list.d/debian-snapshot.list <<\EOF
-deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/20261002T000000Z trixie main
-deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/20261002T000000Z trixie-updates main
-deb [check-valid-until=no] http://snapshot.debian.org/archive/debian-security/20261002T000000Z trixie-security main
+deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/20261113T000000Z trixie main
+deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/20261113T000000Z trixie-updates main
+deb [check-valid-until=no] http://snapshot.debian.org/archive/debian-security/20261113T000000Z trixie-security main
 EOF
 rm -f /etc/apt/sources.list /etc/apt/sources.list.d/debian.sources
 apt-get -o Acquire::Check-Valid-Until=false update
@@ -73,15 +73,15 @@ curl -fsSL --connect-timeout 10 --speed-limit 1024 --speed-time 30 \
 printf "%s  %s\n" "$omp_sha256" "$omp_download" | sha256sum -c -
 install -m 0755 "$omp_download" /usr/local/bin/omp
 rm -f -- "$omp_download"
-jj_version=v0.45.1
+jj_version=v0.47.1
 case "$(dpkg --print-architecture)" in
 arm64)
   jj_archive=jj-${jj_version}-aarch64-unknown-linux-musl.tar.gz
-  jj_sha256=7349a43dd5a20dbc998b10114daa0ee63d2ab863fb822c7eb6b0ebca5903cc69
+  jj_sha256=0f300e1576de8dabe0a9dedf0b87ae44f8accea5cf54d9a342a51061c1fb1bcd
   ;;
 amd64)
   jj_archive=jj-${jj_version}-x86_64-unknown-linux-musl.tar.gz
-  jj_sha256=f35438350b5d61963aac5dd74ede510b31d6b9690769d1a6268cf058cc825f72
+  jj_sha256=d4b657f622ee50929c8916466dfa3d6a6c17a0a32b50e7b2c793707ec9ebcad7
   ;;
 *)
   printf "unsupported architecture for jj: %s\n" "$(dpkg --print-architecture)" >&2
@@ -97,35 +97,35 @@ printf "%s  %s\n" "$jj_sha256" "$jj_download" | sha256sum -c -
 tar -xzf "$jj_download" -C "$jj_extract"
 install -m 0755 "$jj_extract/jj" /usr/local/bin/jj
 rm -rf -- "$jj_extract" "$jj_download"
-fd_version=v10.5.0
+fd_version=v10.5.2
 rg_version=15.2.0
-gh_version=v2.102.0
+gh_version=v2.104.0
 sd_version=v1.1.0
-sg_version=0.45.3
+sg_version=0.51.2
 case "$(dpkg --print-architecture)" in
 arm64)
   fd_archive=fd-${fd_version}-aarch64-unknown-linux-musl.tar.gz
-  fd_sha256=d76c4317f7d5dba69f8a2a15856c90c777e7f0dd4e85f0de8c76de6992c374d4
+  fd_sha256=63ea52cb31586e6d98efa2f06d73d542f16c7d0c4af0f07b579aaf9714cf907a
   rg_archive=ripgrep-${rg_version}-aarch64-unknown-linux-musl.tar.gz
   rg_sha256=800b1e7206afe799dfb5a6901f23147cfaabe0e52210538100f61e86e1740915
-  gh_archive=gh_2.102.0_linux_arm64.tar.gz
-  gh_sha256=7862c86c72f43df3a2d93ddde6f473285b4e2af61b494849846827e513ef6484
+  gh_archive=gh_2.104.0_linux_arm64.tar.gz
+  gh_sha256=cb34cefc6f4e77b90731374a2b737516bb8f3033c6ca46aa949e5344f68069e3
   sd_archive=sd-${sd_version}-aarch64-unknown-linux-musl.tar.gz
   sd_sha256=ec8c93c0533ff21f4851d11566808d4082544baf063d9b96ea77c27e98b7cd99
   sg_archive=app-aarch64-unknown-linux-gnu.zip
-  sg_sha256=b39cfbc58da4b869a88b8a4bc57bd5deb0d24541e704cf7c257da7b53ec81c8f
+  sg_sha256=c3ab2bd43959db28621dc1551c13ea5fe5db4c1fc7b18086dade6b65042c78d0
   ;;
 amd64)
   fd_archive=fd-${fd_version}-x86_64-unknown-linux-musl.tar.gz
-  fd_sha256=761c72dc8e120d85b22292063be8a796e2eeb20eb3e4f38b8fa2343ccf3514a7
+  fd_sha256=7e2d07fa2b8807642aaec67b7e2972a9fbe4db26fcb340a7372392db42b26694
   rg_archive=ripgrep-${rg_version}-x86_64-unknown-linux-musl.tar.gz
   rg_sha256=33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c
-  gh_archive=gh_2.102.0_linux_amd64.tar.gz
-  gh_sha256=bb766f710eef8ede859c18578c72c327597cd4c8a85b06001b1f3843c6019386
+  gh_archive=gh_2.104.0_linux_amd64.tar.gz
+  gh_sha256=98cb101ad87dbbd3f6b2f2bfcbd43197ccd07643140121d8a9cfaa91eadbc24e
   sd_archive=sd-${sd_version}-x86_64-unknown-linux-musl.tar.gz
   sd_sha256=02f00f4777d43e8e95b7b8d49e1a0d6e502fed4b8e79c1c8b8063857a30caa2e
   sg_archive=app-x86_64-unknown-linux-gnu.zip
-  sg_sha256=f8ac830881339d1edee6b2652f54798c0f4da5a827f2db38a08ee31117783ce8
+  sg_sha256=40604c21c38d4c7581c56bdddeef277c56bf3c0113620aa96e78ae87e82366df
   ;;
 *)
   printf "unsupported architecture for fd/ripgrep/gh/sd/ast-grep: %s\n" "$(dpkg --print-architecture)" >&2
