@@ -82,11 +82,11 @@ assert_file_not_contains "$PROJECT_ROOT/build.sh" \
 assert_file_not_contains "$PROJECT_ROOT/build.sh" \
   "SMOLFILE=\"\${SMOLFILE:-"
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'omp_version=v18.20.2'
+  'omp_version=v18.20.3'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'omp_sha256=7f809e51638c2ace701244923d5ec62485bbafd74db75da742ace30c87a91ebf'
+  'omp_sha256=eaa8c4d324b8a54835b3194ba6cb17f849393dd8142745f3a25f70e982a68aa8'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'omp_sha256=f34cfa57311ed67a45f01bb1a21519cad4d74875d181316f00fa0cd6a4abcaaa'
+  'omp_sha256=f34ec9b0f0c368f1937701e2fe111b3c29a7cf53314a642448b3c6cf2925d85a'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
   $'jj_version=v0.47.1\n'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
