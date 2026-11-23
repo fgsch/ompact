@@ -76,6 +76,7 @@ with tempfile.TemporaryDirectory(prefix="ompact-install-test-") as directory:
             "jj": (f"jj-{versions['jj']}-{target}-unknown-linux-musl.tar.gz", "jj"),
             "gh": (f"gh_{versions['gh'].lstrip('v')}_linux_{arch}.tar.gz", "bin/gh"),
             "sg": (f"app-{target}-unknown-linux-gnu.zip", "ast-grep"),
+            "delta": (f"delta-{versions['delta']}-{target}-unknown-linux-gnu.tar.gz", "delta"),
         }
         for tool in ("fd", "rg", "sd"):
             name = "ripgrep" if tool == "rg" else tool
@@ -110,7 +111,7 @@ with tempfile.TemporaryDirectory(prefix="ompact-install-test-") as directory:
                     REAL_INSTALL=real_install, CHECKSUM_COMMAND=json.dumps(checksum_command))
 
     for arch in ("arm64", "amd64"):
-        for corrupt_tool in (None, "jj", "gh", "sg"):
+        for corrupt_tool in (None, "jj", "gh", "sg", "delta"):
             case = work / f"{arch}-{corrupt_tool or 'valid'}"
             downloads = {filename: str(path) for (platform, tool, corrupt), (filename, path, _) in fixtures.items()
                          if corrupt == (tool == corrupt_tool)}
@@ -132,7 +133,7 @@ with tempfile.TemporaryDirectory(prefix="ompact-install-test-") as directory:
                 print(f"{arch}: rejected tampered {binary} before installation")
             else:
                 assert result.returncode == 0, result.stdout + result.stderr
-                for tool, binary in (("jj", "jj"), ("gh", "gh"), ("sg", "ast-grep")):
+                for tool, binary in (("jj", "jj"), ("gh", "gh"), ("sg", "ast-grep"), ("delta", "delta")):
                     installed = case / "bin" / binary
                     assert installed.read_bytes() == fixtures[arch, tool, False][2], f"{binary}: wrong architecture payload"
                     assert os.access(installed, os.X_OK), f"{binary}: installed binary is not executable"

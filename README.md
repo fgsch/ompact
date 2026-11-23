@@ -39,8 +39,8 @@ scripts and `Smolfile` bootstrap, verifies the guest inputs, and writes
 
 Mutable versions, checksums, and installer details live in `Smolfile` and
 the selected `env/*.sh` scripts. The base bootstrap includes `omp`, `jj`,
-`fd`, `rg`, `sd`, `ast-grep`, and `gh`; environment scripts own additional
-tools and caches.
+`fd`, `rg`, `sd`, `ast-grep`, `gh`, and git-delta (`delta`); environment
+scripts own additional tools and caches.
 
 Update an input in its owning file, then run `make check`.
 
@@ -154,6 +154,6 @@ as a whole. The format does not make the package host-independent or persist
 runtime state; macOS may also require additional notarization work.
 
 The artifact bundles third-party software (Debian packages, `omp`, `jj`,
-`fd`, `rg`, `gh`, `sd`, `ast-grep`, uv, and toolchain components) governed
+`fd`, `rg`, `gh`, `sd`, `ast-grep`, git-delta, uv, and toolchain components) governed
 by their own upstream licenses; this repository's MIT license covers only
 the packaging code in this repository.

@@ -41,11 +41,11 @@ assert_file_not_contains() {
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
   'image = "debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2"'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'http://snapshot.debian.org/archive/debian/20261113T000000Z trixie main'
+  'http://snapshot.debian.org/archive/debian/20261123T024836Z trixie main'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'http://snapshot.debian.org/archive/debian/20261113T000000Z trixie-updates main'
+  'http://snapshot.debian.org/archive/debian/20261123T024836Z trixie-updates main'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'http://snapshot.debian.org/archive/debian-security/20261113T000000Z trixie-security main'
+  'http://snapshot.debian.org/archive/debian-security/20261123T041347Z trixie-security main'
 
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
   'cmd = ["--"]'
@@ -104,21 +104,21 @@ assert_file_contains "$PROJECT_ROOT/Smolfile" \
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
   'fd_sha256=7e2d07fa2b8807642aaec67b7e2972a9fbe4db26fcb340a7372392db42b26694'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'rg_version=15.2.0'
+  'rg_version=16.0.0'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'rg_sha256=800b1e7206afe799dfb5a6901f23147cfaabe0e52210538100f61e86e1740915'
+  'rg_sha256=374f1886be881e8e8683d7107278f7af1b6017fda75eb97de71f5783f42b0110'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  'rg_sha256=33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c'
+  'rg_sha256=54268ab4643c00a290a29b0086066d64b3f56236dd805ec64629a86f9bd29fd0'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  $'gh_version=v2.104.0\n'
+  $'gh_version=v2.105.0\n'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  $'gh_archive=gh_2.104.0_linux_arm64.tar.gz\n'
+  $'gh_archive=gh_2.105.0_linux_arm64.tar.gz\n'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  $'gh_archive=gh_2.104.0_linux_amd64.tar.gz\n'
+  $'gh_archive=gh_2.105.0_linux_amd64.tar.gz\n'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  $'gh_sha256=cb34cefc6f4e77b90731374a2b737516bb8f3033c6ca46aa949e5344f68069e3\n'
+  $'gh_sha256=b1278c75107423d818f1937fd92cafc9e5e9b606631568f68d7fb816f5885a02\n'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  $'gh_sha256=98cb101ad87dbbd3f6b2f2bfcbd43197ccd07643140121d8a9cfaa91eadbc24e\n'
+  $'gh_sha256=79e7ab5db738c48777b696e374f8b428f0647debfb424f44d2f426370407fe2f\n'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
   'sd_version=v1.1.0'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
@@ -134,15 +134,15 @@ assert_file_contains "$PROJECT_ROOT/Smolfile" \
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
   "install -m 0755 \"\$sd_extract/\${sd_archive%.tar.gz}/sd\" /usr/local/bin/sd"
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  $'sg_version=0.51.2\n'
+  $'sg_version=0.51.3\n'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
   $'sg_archive=app-aarch64-unknown-linux-gnu.zip\n'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
   $'sg_archive=app-x86_64-unknown-linux-gnu.zip\n'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  $'sg_sha256=c3ab2bd43959db28621dc1551c13ea5fe5db4c1fc7b18086dade6b65042c78d0\n'
+  $'sg_sha256=5b44fd68e78744934b359b07badce347d4197ed50b341d50f1f99d056ecedb08\n'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
-  $'sg_sha256=40604c21c38d4c7581c56bdddeef277c56bf3c0113620aa96e78ae87e82366df\n'
+  $'sg_sha256=22803eb0c5bf83164fb7fd76d4721d355ecf0c8466ef47342c1ec7d80897ca47\n'
 assert_file_not_contains "$PROJECT_ROOT/Smolfile" \
   'fd-find ripgrep'
 assert_file_contains "$PROJECT_ROOT/Smolfile" \
@@ -160,7 +160,7 @@ assert_file_contains "$PROJECT_ROOT/env/go.sh" \
 assert_file_contains "$PROJECT_ROOT/env/go.sh" \
   $'GOPLS_VERSION=${GOPLS_VERSION:-0.24.0}\n'
 assert_file_contains "$PROJECT_ROOT/env/go.sh" \
-  $'GOVULNCHECK_VERSION=${GOVULNCHECK_VERSION:-1.9.0}\n'
+  $'GOVULNCHECK_VERSION=${GOVULNCHECK_VERSION:-1.10.0}\n'
 assert_file_contains "$PROJECT_ROOT/env/go.sh" \
   $'STATICCHECK_VERSION=${STATICCHECK_VERSION:-0.8.2}\n'
 assert_file_contains "$PROJECT_ROOT/env/go.sh" \
@@ -170,15 +170,15 @@ assert_file_contains "$PROJECT_ROOT/env/rust.sh" \
 assert_file_contains "$PROJECT_ROOT/env/rust.sh" \
   $'CARGO_AUDIT_VERSION=${CARGO_AUDIT_VERSION:-0.23.0}\n'
 assert_file_contains "$PROJECT_ROOT/env/rust.sh" \
-  $'CARGO_DENY_VERSION=${CARGO_DENY_VERSION:-0.20.2}\n'
+  $'CARGO_DENY_VERSION=${CARGO_DENY_VERSION:-0.22.0}\n'
 assert_file_contains "$PROJECT_ROOT/env/rust.sh" \
-  $'CARGO_NEXTEST_VERSION=${CARGO_NEXTEST_VERSION:-0.9.151}\n'
+  $'CARGO_NEXTEST_VERSION=${CARGO_NEXTEST_VERSION:-0.9.152}\n'
 assert_file_contains "$PROJECT_ROOT/env/rust.sh" \
-  $'CARGO_LLVM_COV_VERSION=${CARGO_LLVM_COV_VERSION:-0.9.1}\n'
+  $'CARGO_LLVM_COV_VERSION=${CARGO_LLVM_COV_VERSION:-0.9.2}\n'
 assert_file_contains "$PROJECT_ROOT/env/python.sh" \
-  $'UV_VERSION=${UV_VERSION:-0.13.8}\n'
+  $'UV_VERSION=${UV_VERSION:-0.13.9}\n'
 assert_file_contains "$PROJECT_ROOT/env/python.sh" \
-  $'UV_INSTALLER_SHA256=4d8fa56e00f16b66feecacbd943773c61d61ab768b13856de350d86fd8740e2f\n'
+  $'UV_INSTALLER_SHA256=ccc888115ac831bd9c30855c1d4abeae32fce679701d2aac8e72eb0beffb41c2\n'
 
 cat >"$FAKE_SMOLVM" <<'FAKE_SMOLVM'
 #!/usr/bin/env bash

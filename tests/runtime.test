@@ -161,7 +161,7 @@ set -e
 }
 
 # Verify selected tools are present and executable by the omp user
-REQUIRED_TOOLS=(python python3 fd rg gh sd ast-grep jj gdb lldb)
+REQUIRED_TOOLS=(python python3 fd rg gh sd ast-grep jj delta gdb lldb)
 for tool in "${REQUIRED_TOOLS[@]}"; do
   if ! "$PROJECT_ROOT/ompact" run -- /bin/sh -c \
     "command -v $tool >/dev/null 2>&1"; then
@@ -194,6 +194,7 @@ done
 if ((${#TOOLS_PRESENT[@]})); then
   GH_PIN="$(sed -n 's/^gh_version=v//p' "$PROJECT_ROOT/Smolfile")"
   AST_GREP_PIN="$(sed -n 's/^sg_version=//p' "$PROJECT_ROOT/Smolfile")"
+  DELTA_PIN="$(sed -n 's/^delta_version=//p' "$PROJECT_ROOT/Smolfile")"
   printf 'verifying tool access for: %s\n' "${TOOLS_PRESENT[*]}"
   for tool in "${TOOLS_PRESENT[@]}"; do
     # Run through runuser to verify access as the omp user
@@ -233,7 +234,7 @@ if ((${#TOOLS_PRESENT[@]})); then
       ;;
     rg)
       version_command='rg --version'
-      expected='ripgrep 15.2.0'
+      expected='ripgrep 16.0.0'
       ;;
     gh)
       version_command='gh --version'
@@ -248,10 +249,14 @@ if ((${#TOOLS_PRESENT[@]})); then
       version_command='ast-grep --version'
       expected="ast-grep $AST_GREP_PIN"
       ;;
+    delta)
+      version_command='delta --version'
+      expected="delta $DELTA_PIN"
+      ;;
     esac
     OUTPUT="$("$PROJECT_ROOT/ompact" run -- \
       /usr/sbin/runuser --user omp -- /bin/sh -c "$version_command")"
-    if [[ "$tool" == gh || "$tool" == ast-grep ]]; then
+    if [[ "$tool" == gh || "$tool" == ast-grep || "$tool" == delta ]]; then
       VERSION_LINE="${OUTPUT%%$'\n'*}"
       VERSION_LINE="${VERSION_LINE%% (*}"
       [[ "$VERSION_LINE" == "$expected" ]] || {
